@@ -33,7 +33,7 @@ describe("authService", () => {
       const mockUser = {
         id: "123",
         email: "test@example.com",
-      };
+      } as any;
 
       const { supabase } = await import("@/lib/supabase");
       vi.mocked(supabase.auth.signUp).mockResolvedValue({
@@ -66,7 +66,7 @@ describe("authService", () => {
 
     it("should handle signup errors", async () => {
       const { supabase } = await import("@/lib/supabase");
-      const mockError = new Error("Email already exists");
+      const mockError = new Error("Email already exists") as any;
 
       vi.mocked(supabase.auth.signUp).mockResolvedValue({
         data: { user: null, session: null },
@@ -91,7 +91,7 @@ describe("authService", () => {
       const mockSession = {
         user: { id: "123", email: "test@example.com" },
         access_token: "token",
-      };
+      } as any;
 
       vi.mocked(supabase.auth.signInWithPassword).mockResolvedValue({
         data: { user: mockSession.user, session: mockSession },
@@ -110,7 +110,7 @@ describe("authService", () => {
 
     it("should handle invalid credentials", async () => {
       const { supabase } = await import("@/lib/supabase");
-      const mockError = new Error("Invalid login credentials");
+      const mockError = new Error("Invalid login credentials") as any;
 
       vi.mocked(supabase.auth.signInWithPassword).mockResolvedValue({
         data: { user: null, session: null },
