@@ -110,7 +110,7 @@ export default function SettingsPage() {
           new_tender_alerts: notifData.new_tender_alerts ?? true,
           status_updates: notifData.status_updates ?? true,
           team_mentions: notifData.team_mentions ?? true,
-          email_frequency: notifData.email_frequency || "instant",
+          email_frequency: (notifData.email_frequency as "instant" | "daily" | "weekly") || "instant",
         });
       }
     } catch (err) {

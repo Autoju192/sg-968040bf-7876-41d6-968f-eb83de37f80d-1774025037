@@ -46,8 +46,7 @@ describe("tenderService", () => {
 
       const result = await tenderService.getTenders("org-123");
 
-      expect(result.data).toEqual(mockTenders);
-      expect(result.error).toBeNull();
+      expect(result).toEqual(mockTenders);
       expect(supabase.from).toHaveBeenCalledWith("tenders");
     });
 
@@ -69,29 +68,24 @@ describe("tenderService", () => {
         mockFrom()
       );
 
-      const result = await tenderService.getTenders("org-123");
-
-      expect(result.data).toBeNull();
-      expect(result.error).toEqual(mockError);
+      await expect(tenderService.getTenders("org-123")).rejects.toEqual(mockError);
     });
   });
 
   describe("createTender", () => {
     it("should create a new tender", async () => {
       const tenderData = {
-        organisation_id: "org-123",
         title: "New Tender",
         authority: "Test Council",
         deadline: "2026-06-01",
         value: 500000,
-        status: "new" as const,
       };
 
       const mockFrom = vi.fn().mockReturnValue({
         insert: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
-              data: { id: "tender-123", ...tenderData },
+              data: { id: "tender-123", organisation_id: "org-123", status: "new", ...tenderData },
               error: null,
             }),
           }),
@@ -102,15 +96,14 @@ describe("tenderService", () => {
         mockFrom()
       );
 
-      const result = await tenderService.createTender(tenderData);
+      const result = await tenderService.createTender("org-123", tenderData);
 
-      expect(result.data).toHaveProperty("id");
-      expect(result.data?.title).toBe("New Tender");
-      expect(result.error).toBeNull();
+      expect(result).toHaveProperty("id");
+      expect(result?.title).toBe("New Tender");
     });
   });
 
-  describe("updateTenderStatus", () => {
+  describe("updateTender", () => {
     it("should update tender status", async () => {
       const mockFrom = vi.fn().mockReturnValue({
         update: vi.fn().mockReturnValue({
@@ -129,10 +122,9 @@ describe("tenderService", () => {
         mockFrom()
       );
 
-      const result = await tenderService.updateTenderStatus("tender-123", "bid");
+      const result = await tenderService.updateTender("tender-123", { status: "bid" });
 
-      expect(result.data?.status).toBe("bid");
-      expect(result.error).toBeNull();
+      expect(result?.status).toBe("bid");
     });
   });
 });

@@ -9,7 +9,7 @@ describe("evidenceService", () => {
     vi.clearAllMocks();
   });
 
-  describe("getEvidenceItems", () => {
+  describe("getEvidenceLibrary", () => {
     it("should fetch evidence items for organization", async () => {
       const mockEvidence = [
         {
@@ -35,17 +35,15 @@ describe("evidenceService", () => {
         mockFrom()
       );
 
-      const result = await evidenceService.getEvidenceItems("org-123");
+      const result = await evidenceService.getEvidenceLibrary("org-123");
 
-      expect(result.data).toEqual(mockEvidence);
-      expect(result.error).toBeNull();
+      expect(result).toEqual(mockEvidence);
     });
   });
 
-  describe("createEvidenceItem", () => {
+  describe("createEvidence", () => {
     it("should create a new evidence item", async () => {
       const evidenceData = {
-        organisation_id: "org-123",
         title: "New Policy",
         category: "Quality Assurance",
         content: "Policy content...",
@@ -55,7 +53,7 @@ describe("evidenceService", () => {
         insert: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
-              data: { id: "evidence-123", ...evidenceData },
+              data: { id: "evidence-123", organisation_id: "org-123", ...evidenceData },
               error: null,
             }),
           }),
@@ -66,11 +64,10 @@ describe("evidenceService", () => {
         mockFrom()
       );
 
-      const result = await evidenceService.createEvidenceItem(evidenceData);
+      const result = await evidenceService.createEvidence("org-123", evidenceData);
 
-      expect(result.data).toHaveProperty("id");
-      expect(result.data?.title).toBe("New Policy");
-      expect(result.error).toBeNull();
+      expect(result).toHaveProperty("id");
+      expect(result?.title).toBe("New Policy");
     });
   });
 });
