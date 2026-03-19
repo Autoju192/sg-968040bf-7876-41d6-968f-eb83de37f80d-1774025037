@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,98 +13,88 @@ import {
   CheckCircle2,
   XCircle,
   ArrowRight,
+  FileText,
 } from "lucide-react";
-
-const kpis = [
-  {
-    name: "Total Tenders",
-    value: "127",
-    change: "+12%",
-    trend: "up",
-    icon: FileSearch,
-  },
-  {
-    name: "Active Bids",
-    value: "23",
-    change: "+5",
-    trend: "up",
-    icon: FileCheck,
-  },
-  {
-    name: "Submitted Bids",
-    value: "18",
-    change: "3 pending",
-    trend: "neutral",
-    icon: CheckCircle2,
-  },
-  {
-    name: "Deadlines This Week",
-    value: "7",
-    change: "2 urgent",
-    trend: "warning",
-    icon: Clock,
-  },
-];
-
-const recentActivity = [
-  {
-    id: 1,
-    title: "New tender matched: Residential Care - Manchester",
-    type: "match",
-    time: "2 hours ago",
-    score: 92,
-  },
-  {
-    id: 2,
-    title: "Bid submitted: Domiciliary Care - Birmingham",
-    type: "submitted",
-    time: "5 hours ago",
-  },
-  {
-    id: 3,
-    title: "Deadline reminder: Supported Living - Leeds",
-    type: "deadline",
-    time: "1 day ago",
-  },
-  {
-    id: 4,
-    title: "Document generated: Method Statement - Quality Care",
-    type: "document",
-    time: "2 days ago",
-  },
-];
-
-const highFitTenders = [
-  {
-    id: 1,
-    title: "Residential Care Services - Greater Manchester",
-    authority: "Manchester City Council",
-    deadline: "2026-04-15",
-    value: "£2.4M",
-    score: 94,
-    status: "Review",
-  },
-  {
-    id: 2,
-    title: "Domiciliary Care Framework - West Midlands",
-    authority: "Birmingham Council",
-    deadline: "2026-04-22",
-    value: "£1.8M",
-    score: 89,
-    status: "Bid",
-  },
-  {
-    id: 3,
-    title: "Supported Living - Yorkshire Region",
-    authority: "Leeds City Council",
-    deadline: "2026-04-10",
-    value: "£3.2M",
-    score: 87,
-    status: "Bid",
-  },
-];
+import { useAuth } from "@/contexts/AuthContext";
+import { getTenders } from "@/services/tenderService";
+import type { Tender } from "@/services/tenderService";
 
 export default function Dashboard() {
+  const { organisation, loading: authLoading } = useAuth();
+  const [tenders, setTenders] = useState<Tender[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (organisation && !authLoading) {
+      loadTenders();
+    }
+  }, [organisation, authLoading]);
+
+  async function loadTenders() {
+    if (!organisation) return;
+    
+    try {
+      const data = await getTenders(organisation.id);
+      setTenders(data);
+    } catch (error) {
+      console.error("Error loading tenders:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const totalTenders = tenders.length;
+  const activeBids = tenders.filter(t => t.decision === "bid" && t.status !== "submitted").length;
+  const submitted = tenders.filter(t => t.status === "submitted").length;
+  const approaching = tenders.filter(t => {
+    const deadline = new Date(t.deadline);
+    const daysUntil = Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return daysUntil <= 7 && daysUntil >= 0;
+  }).length;
+
+  const highFitTenders = tenders
+    .filter(t => t.ai_score && t.ai_score >= 75)
+    .slice(0, 5);
+
+  const recentActivity = tenders
+    .slice(0, 5)
+    .map(t => ({
+      tender: t.title,
+      action: t.status === "new" ? "New tender added" : `Status: ${t.status}`,
+      time: new Date(t.created_at || "").toLocaleDateString(),
+    }));
+
+  const kpis = [
+    {
+      name: "Total Tenders",
+      value: String(totalTenders),
+      change: "",
+      trend: "",
+      icon: FileSearch,
+    },
+    {
+      name: "Active Bids",
+      value: String(activeBids),
+      change: "",
+      trend: "",
+      icon: FileCheck,
+    },
+    {
+      name: "Submitted Bids",
+      value: String(submitted),
+      change: "",
+      trend: "",
+      icon: CheckCircle2,
+    },
+    {
+      name: "Deadlines This Week",
+      value: String(approaching),
+      change: "",
+      trend: "",
+      icon: Clock,
+    },
+  ];
+
   return (
     <Layout>
       <SEO
