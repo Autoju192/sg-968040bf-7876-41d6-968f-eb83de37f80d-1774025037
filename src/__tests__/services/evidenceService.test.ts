@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { evidenceService } from "@/services/evidenceService";
+import * as evidenceService from "@/services/evidenceService";
 import { supabase } from "@/lib/supabase";
 
 vi.mock("@/lib/supabase");

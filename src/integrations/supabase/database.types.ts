@@ -66,6 +66,53 @@ export type Database = {
           },
         ]
       }
+      email_settings: {
+        Row: {
+          created_at: string | null
+          from_email: string | null
+          from_name: string | null
+          id: string
+          organisation_id: string | null
+          smtp_host: string | null
+          smtp_password: string | null
+          smtp_port: string | null
+          smtp_username: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          organisation_id?: string | null
+          smtp_host?: string | null
+          smtp_password?: string | null
+          smtp_port?: string | null
+          smtp_username?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          organisation_id?: string | null
+          smtp_host?: string | null
+          smtp_password?: string | null
+          smtp_port?: string | null
+          smtp_username?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_settings_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evidence_library: {
         Row: {
           category: string
@@ -198,6 +245,50 @@ export type Database = {
             foreignKeyName: "messages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_settings: {
+        Row: {
+          created_at: string | null
+          deadline_reminders: boolean | null
+          email_frequency: string | null
+          id: string
+          new_tender_alerts: boolean | null
+          status_updates: boolean | null
+          team_mentions: boolean | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          deadline_reminders?: boolean | null
+          email_frequency?: string | null
+          id?: string
+          new_tender_alerts?: boolean | null
+          status_updates?: boolean | null
+          team_mentions?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          deadline_reminders?: boolean | null
+          email_frequency?: string | null
+          id?: string
+          new_tender_alerts?: boolean | null
+          status_updates?: boolean | null
+          team_mentions?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },

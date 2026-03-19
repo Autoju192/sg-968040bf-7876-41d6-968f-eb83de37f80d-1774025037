@@ -40,14 +40,14 @@ interface NotificationSettings {
 }
 
 export default function SettingsPage() {
-  const { user, organisation } = useAuth();
+  const { user, profile, organisation } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
   // Profile settings
-  const [fullName, setFullName] = useState(user?.full_name || "");
+  const [fullName, setFullName] = useState(profile?.full_name || user?.user_metadata?.full_name || "");
   const [email, setEmail] = useState(user?.email || "");
 
   // Email settings
