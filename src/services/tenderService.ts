@@ -55,7 +55,7 @@ export async function createTender(
     title: string;
     authority: string;
     deadline: string;
-    value?: string;
+    value?: number;
     service_type?: string;
     location?: string;
   }

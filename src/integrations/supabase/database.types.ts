@@ -20,6 +20,7 @@ export type Database = {
           content: string
           created_at: string | null
           created_by: string
+          file_url: string | null
           id: string
           tender_id: string
           title: string
@@ -30,6 +31,7 @@ export type Database = {
           content: string
           created_at?: string | null
           created_by: string
+          file_url?: string | null
           id?: string
           tender_id: string
           title: string
@@ -40,6 +42,7 @@ export type Database = {
           content?: string
           created_at?: string | null
           created_by?: string
+          file_url?: string | null
           id?: string
           tender_id?: string
           title?: string
@@ -104,28 +107,82 @@ export type Database = {
           },
         ]
       }
+      historical_bids: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string
+          organisation_id: string
+          outcome: string | null
+          tender_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          organisation_id: string
+          outcome?: string | null
+          tender_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          organisation_id?: string
+          outcome?: string | null
+          tender_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_bids_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_bids_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
           created_at: string | null
+          deadline: string | null
           id: string
           is_ai: boolean | null
+          message_text: string | null
+          parsed_action: string | null
+          source: string | null
           tender_id: string
           user_id: string | null
         }
         Insert: {
           content: string
           created_at?: string | null
+          deadline?: string | null
           id?: string
           is_ai?: boolean | null
+          message_text?: string | null
+          parsed_action?: string | null
+          source?: string | null
           tender_id: string
           user_id?: string | null
         }
         Update: {
           content?: string
           created_at?: string | null
+          deadline?: string | null
           id?: string
           is_ai?: boolean | null
+          message_text?: string | null
+          parsed_action?: string | null
+          source?: string | null
           tender_id?: string
           user_id?: string | null
         }
@@ -149,20 +206,26 @@ export type Database = {
       organisations: {
         Row: {
           created_at: string | null
+          geography_focus: string[] | null
           id: string
           name: string
+          sector: string | null
           settings: Json | null
         }
         Insert: {
           created_at?: string | null
+          geography_focus?: string[] | null
           id?: string
           name: string
+          sector?: string | null
           settings?: Json | null
         }
         Update: {
           created_at?: string | null
+          geography_focus?: string[] | null
           id?: string
           name?: string
+          sector?: string | null
           settings?: Json | null
         }
         Relationships: []
@@ -232,7 +295,9 @@ export type Database = {
           file_name: string
           file_path: string
           file_type: string
+          file_url: string | null
           id: string
+          parsed_text: string | null
           tender_id: string
         }
         Insert: {
@@ -241,7 +306,9 @@ export type Database = {
           file_name: string
           file_path: string
           file_type: string
+          file_url?: string | null
           id?: string
+          parsed_text?: string | null
           tender_id: string
         }
         Update: {
@@ -250,12 +317,100 @@ export type Database = {
           file_name?: string
           file_path?: string
           file_type?: string
+          file_url?: string | null
           id?: string
+          parsed_text?: string | null
           tender_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "tender_files_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_pipeline: {
+        Row: {
+          created_at: string | null
+          id: string
+          next_action: string | null
+          next_action_date: string | null
+          owner: string | null
+          priority: string | null
+          status: string | null
+          tender_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          next_action?: string | null
+          next_action_date?: string | null
+          owner?: string | null
+          priority?: string | null
+          status?: string | null
+          tender_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          next_action?: string | null
+          next_action_date?: string | null
+          owner?: string | null
+          priority?: string | null
+          status?: string | null
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_pipeline_owner_fkey"
+            columns: ["owner"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_pipeline_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_questions: {
+        Row: {
+          created_at: string | null
+          id: string
+          question_text: string | null
+          required: boolean | null
+          section: string | null
+          tender_id: string
+          weight: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          question_text?: string | null
+          required?: boolean | null
+          section?: string | null
+          tender_id: string
+          weight?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          question_text?: string | null
+          required?: boolean | null
+          section?: string | null
+          tender_id?: string
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_questions_tender_id_fkey"
             columns: ["tender_id"]
             isOneToOne: false
             referencedRelation: "tenders"
@@ -317,47 +472,62 @@ export type Database = {
         Row: {
           ai_score: number | null
           authority: string
+          category: string | null
           created_at: string | null
           deadline: string
           decision: string | null
+          dedup_key: string | null
+          description: string | null
           id: string
+          link: string | null
           location: string | null
           organisation_id: string
           service_type: string | null
+          source: string | null
           status: string
           title: string
           updated_at: string | null
-          value: string | null
+          value: number | null
         }
         Insert: {
           ai_score?: number | null
           authority: string
+          category?: string | null
           created_at?: string | null
           deadline: string
           decision?: string | null
+          dedup_key?: string | null
+          description?: string | null
           id?: string
+          link?: string | null
           location?: string | null
           organisation_id: string
           service_type?: string | null
+          source?: string | null
           status?: string
           title: string
           updated_at?: string | null
-          value?: string | null
+          value?: number | null
         }
         Update: {
           ai_score?: number | null
           authority?: string
+          category?: string | null
           created_at?: string | null
           deadline?: string
           decision?: string | null
+          dedup_key?: string | null
+          description?: string | null
           id?: string
+          link?: string | null
           location?: string | null
           organisation_id?: string
           service_type?: string | null
+          source?: string | null
           status?: string
           title?: string
           updated_at?: string | null
-          value?: string | null
+          value?: number | null
         }
         Relationships: [
           {

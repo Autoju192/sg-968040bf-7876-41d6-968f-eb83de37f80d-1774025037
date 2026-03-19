@@ -202,7 +202,9 @@ export default function TendersPage() {
                     <TableCell className="text-sm">
                       {new Date(tender.deadline).toLocaleDateString("en-GB")}
                     </TableCell>
-                    <TableCell className="text-sm font-medium">{tender.value}</TableCell>
+                    <TableCell className="font-medium">
+                      {tender.value ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(tender.value) : "N/A"}
+                    </TableCell>
                     <TableCell>
                       <div
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getScoreColor(

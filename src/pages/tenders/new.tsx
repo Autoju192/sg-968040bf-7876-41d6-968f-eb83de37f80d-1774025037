@@ -37,7 +37,7 @@ export default function NewTenderPage() {
           title,
           authority,
           deadline,
-          value,
+          value: value ? Number(value.replace(/[^0-9.-]+/g, "")) : undefined,
           location,
           service_type: serviceType,
           status: "new",

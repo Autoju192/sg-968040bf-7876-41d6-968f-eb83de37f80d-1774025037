@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
   FileText,
@@ -23,31 +22,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-
-interface Tender {
-  id: string;
-  title: string;
-  authority: string;
-  deadline: string;
-  value: string;
-  location: string;
-  service_type: string;
-  status: string;
-  ai_score: number;
-  decision: string | null;
-  created_at: string;
-}
-
-interface TenderScore {
-  service_fit: number;
-  geography_fit: number;
-  compliance_fit: number;
-  evidence_fit: number;
-  total_score: number;
-  reasoning: string;
-  risks: string[];
-  missing_evidence: string[];
-}
+import type { Tender, TenderScore } from "@/services/tenderService";
 
 interface Message {
   id: string;
@@ -113,9 +88,11 @@ export default function TenderDetailPage() {
 
     setSending(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const userMessage = {
         tender_id: id,
-        user_id: "temp-user-id", // Will be replaced by actual user ID later
+        user_id: user?.id,
         content: newMessage,
         is_ai: false,
       };
@@ -176,10 +153,10 @@ export default function TenderDetailPage() {
 
   const scoreBreakdown = score
     ? [
-        { label: "Service Fit", value: score.service_fit, color: "text-purple-600" },
-        { label: "Geography Fit", value: score.geography_fit, color: "text-blue-600" },
-        { label: "Compliance Fit", value: score.compliance_fit, color: "text-green-600" },
-        { label: "Evidence Fit", value: score.evidence_fit, color: "text-orange-600" },
+        { label: "Service Fit", value: score.service_fit || 0, color: "text-purple-600" },
+        { label: "Geography Fit", value: score.geography_fit || 0, color: "text-blue-600" },
+        { label: "Compliance Fit", value: score.compliance_fit || 0, color: "text-green-600" },
+        { label: "Evidence Fit", value: score.evidence_fit || 0, color: "text-orange-600" },
       ]
     : [];
 
@@ -202,14 +179,18 @@ export default function TenderDetailPage() {
                   <MapPin className="w-4 h-4" />
                   {tender.location}
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4" />
-                  Deadline: {new Date(tender.deadline).toLocaleDateString("en-GB")}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <DollarSign className="w-4 h-4" />
-                  {tender.value}
-                </div>
+                {tender.deadline && (
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4" />
+                    Deadline: {new Date(tender.deadline).toLocaleDateString("en-GB")}
+                  </div>
+                )}
+                {tender.value && (
+                  <div className="flex items-center gap-1.5">
+                    <DollarSign className="w-4 h-4" />
+                    {new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(tender.value)}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-3">
@@ -230,9 +211,9 @@ export default function TenderDetailPage() {
                     </div>
                     <h3 className="text-3xl font-bold mb-1">{score.total_score}% Match</h3>
                     <p className="opacity-90 text-sm">
-                      {score.total_score >= 80
+                      {(score.total_score || 0) >= 80
                         ? "Strong recommendation to bid"
-                        : score.total_score >= 60
+                        : (score.total_score || 0) >= 60
                         ? "Consider bidding with preparation"
                         : "Review carefully before committing"}
                     </p>
@@ -269,7 +250,7 @@ export default function TenderDetailPage() {
                 <CardContent className="space-y-4">
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">Service Type</h4>
-                    <p className="text-sm">{tender.service_type}</p>
+                    <p className="text-sm">{tender.service_type || "Not specified"}</p>
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">Status</h4>
@@ -285,6 +266,12 @@ export default function TenderDetailPage() {
                       <Badge variant="secondary">Under Review</Badge>
                     )}
                   </div>
+                  {tender.description && (
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Description</h4>
+                      <p className="text-sm whitespace-pre-wrap">{tender.description}</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -339,7 +326,7 @@ export default function TenderDetailPage() {
               </Card>
 
               {/* Reasoning */}
-              {score && (
+              {score && score.reasoning && (
                 <Card className="shadow-medium">
                   <CardHeader>
                     <CardTitle>AI Reasoning</CardTitle>
@@ -351,7 +338,7 @@ export default function TenderDetailPage() {
               )}
 
               {/* Risks */}
-              {score && score.risks.length > 0 && (
+              {score && score.risks && score.risks.length > 0 && (
                 <Card className="shadow-medium">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -373,7 +360,7 @@ export default function TenderDetailPage() {
               )}
 
               {/* Missing Evidence */}
-              {score && score.missing_evidence.length > 0 && (
+              {score && score.missing_evidence && score.missing_evidence.length > 0 && (
                 <Card className="shadow-medium">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
