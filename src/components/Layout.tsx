@@ -30,6 +30,8 @@ const navigation = [
   { name: "Evidence Library", href: "/evidence", icon: Library },
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "Team", href: "/team", icon: Users },
+  { name: "Reports", href: "/reports", icon: Zap },
+  { name: "Admin", href: "/admin", icon: Settings },
 ];
 
 export function Layout({ children }: LayoutProps) {
@@ -43,6 +45,8 @@ export function Layout({ children }: LayoutProps) {
     if (path.startsWith("/evidence")) return "Evidence Library";
     if (path.startsWith("/documents")) return "Documents";
     if (path.startsWith("/team")) return "Team";
+    if (path.startsWith("/reports")) return "Performance Reports";
+    if (path.startsWith("/admin")) return "Admin Panel";
     return "TenderFlow AI";
   };
 
