@@ -1,8 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import * as authService from "@/services/authService";
-import type { User, Organisation } from "@/services/authService";
+import { User, Organisation, authService } from "@/services/authService";
 
 interface AuthContextType {
   user: SupabaseUser | null;
@@ -23,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    authService.getSession().then((session) => {
+    authService.getSession().then(({ session }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         loadProfile();
@@ -48,9 +47,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile() {
     try {
       const data = await authService.getCurrentUserProfile();
-      if (data) {
-        setProfile(data);
-        setOrganisation(data.organisations as Organisation);
+      if (data && data.profile) {
+        // Cast the database profile to our User interface
+        const userProfile: User = {
+          id: data.profile.id,
+          email: data.profile.email,
+          full_name: data.profile.full_name,
+          organisation_id: data.profile.organisation_id,
+          role: data.profile.role as User["role"],
+          created_at: data.profile.created_at || new Date().toISOString()
+        };
+        setProfile(userProfile);
+        
+        if (data.organisation) {
+          const org: Organisation = {
+            id: data.organisation.id,
+            name: data.organisation.name,
+            created_at: data.organisation.created_at || new Date().toISOString()
+          };
+          setOrganisation(org);
+        }
       }
     } catch (error) {
       console.error("Error loading profile:", error);

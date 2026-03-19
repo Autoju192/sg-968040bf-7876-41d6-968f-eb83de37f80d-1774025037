@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DashboardCharts } from "@/components/DashboardCharts";
+import Link from "next/link";
 import {
   FileSearch,
   FileCheck,
@@ -146,11 +147,11 @@ export default function Dashboard() {
 
         {/* Charts Section */}
         <div className="mb-8">
-          <DashboardCharts 
-            tenders={tenders} 
-            dateRange={dateRange} 
-            onDateRangeChange={setDateRange} 
-          />
+          <Card className="col-span-full">
+            <CardContent className="pt-6">
+              <DashboardCharts />
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
