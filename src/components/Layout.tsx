@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { NotificationCenter } from "@/components/NotificationCenter";
 
 interface LayoutProps {
   children: ReactNode;
@@ -93,6 +94,23 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
       </aside>
+
+      {/* Header */}
+      <header className="h-16 border-b border-border bg-background flex items-center justify-between px-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" className="lg:hidden">
+            <Menu className="w-5 h-5" />
+          </Button>
+          <h2 className="text-lg font-semibold">{getPageTitle()}</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <NotificationCenter />
+          <ThemeSwitch />
+          <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <LogOut className="w-5 h-5" />
+          </Button>
+        </div>
+      </header>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
