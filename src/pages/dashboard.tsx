@@ -4,6 +4,7 @@ import { SEO } from "@/components/SEO";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DashboardCharts } from "@/components/DashboardCharts";
 import {
   FileSearch,
   FileCheck,
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const { organisation, loading: authLoading } = useAuth();
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState("30d");
 
   useEffect(() => {
     if (organisation && !authLoading) {
@@ -110,7 +112,7 @@ export default function Dashboard() {
         <div className="mb-8">
           <h1 className="text-3xl font-heading font-bold mb-2">Dashboard</h1>
           <p className="text-muted-foreground">
-            Welcome back! Here's what's happening with your tenders.
+            Welcome back! Here&apos;s what&apos;s happening with your tenders.
           </p>
         </div>
 
@@ -142,6 +144,15 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* Charts Section */}
+        <div className="mb-8">
+          <DashboardCharts 
+            tenders={tenders} 
+            dateRange={dateRange} 
+            onDateRangeChange={setDateRange} 
+          />
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* High-Fit Tenders */}
           <Card className="shadow-medium">
@@ -159,42 +170,52 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {highFitTenders.map((tender) => (
-                  <div
-                    key={tender.id}
-                    className="p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-sm">{tender.title}</h4>
-                      <Badge
-                        variant={tender.status === "Bid" ? "default" : "secondary"}
-                        className="ml-2"
-                      >
-                        {tender.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      {tender.authority}
+                {highFitTenders.length === 0 ? (
+                  <div className="text-center py-8">
+                    <TrendingUp className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                    <p className="text-muted-foreground font-medium">No high-fit tenders yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Add tenders to see AI scoring
                     </p>
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-4">
-                        <span className="text-muted-foreground">
-                          Deadline: {new Date(tender.deadline).toLocaleDateString()}
-                        </span>
-                        <span className="font-medium">{tender.value}</span>
+                  </div>
+                ) : (
+                  highFitTenders.map((tender) => (
+                    <div
+                      key={tender.id}
+                      className="p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-medium text-sm">{tender.title}</h4>
+                        <Badge
+                          variant={tender.status === "bid" ? "default" : "secondary"}
+                          className="ml-2"
+                        >
+                          {tender.status}
+                        </Badge>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{ width: `${tender.ai_score}%` }}
-                          />
+                      <p className="text-xs text-muted-foreground mb-3">
+                        {tender.authority}
+                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-4">
+                          <span className="text-muted-foreground">
+                            Deadline: {new Date(tender.deadline).toLocaleDateString()}
+                          </span>
+                          <span className="font-medium">{tender.value}</span>
                         </div>
-                        <span className="font-medium text-primary">{tender.ai_score}%</span>
+                        <div className="flex items-center gap-1">
+                          <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary"
+                              style={{ width: `${tender.ai_score}%` }}
+                            />
+                          </div>
+                          <span className="font-medium text-primary">{tender.ai_score}%</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -206,30 +227,40 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      activity.type === "match" ? "bg-primary/10" :
-                      activity.type === "submitted" ? "bg-green-500/10" :
-                      activity.type === "deadline" ? "bg-destructive/10" :
-                      "bg-muted"
-                    }`}>
-                      {activity.type === "match" && <TrendingUp className="w-4 h-4 text-primary" />}
-                      {activity.type === "submitted" && <CheckCircle2 className="w-4 h-4 text-green-600" />}
-                      {activity.type === "deadline" && <AlertCircle className="w-4 h-4 text-destructive" />}
-                      {activity.type === "document" && <FileCheck className="w-4 h-4 text-muted-foreground" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium mb-1">{activity.title}</p>
-                      <p className="text-xs text-muted-foreground">{activity.time}</p>
-                    </div>
-                    {activity.score && (
-                      <Badge variant="secondary" className="self-start">
-                        {activity.score}% fit
-                      </Badge>
-                    )}
+                {recentActivity.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                    <p className="text-muted-foreground font-medium">No activity yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Start by adding your first tender
+                    </p>
                   </div>
-                ))}
+                ) : (
+                  recentActivity.map((activity) => (
+                    <div key={activity.id} className="flex gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        activity.type === "match" ? "bg-primary/10" :
+                        activity.type === "submitted" ? "bg-green-500/10" :
+                        activity.type === "deadline" ? "bg-destructive/10" :
+                        "bg-muted"
+                      }`}>
+                        {activity.type === "match" && <TrendingUp className="w-4 h-4 text-primary" />}
+                        {activity.type === "submitted" && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+                        {activity.type === "deadline" && <AlertCircle className="w-4 h-4 text-destructive" />}
+                        {activity.type === "document" && <FileCheck className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium mb-1">{activity.title}</p>
+                        <p className="text-xs text-muted-foreground">{activity.time}</p>
+                      </div>
+                      {activity.score && (
+                        <Badge variant="secondary" className="self-start">
+                          {activity.score}% fit
+                        </Badge>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

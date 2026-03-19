@@ -12,9 +12,11 @@ export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     // TODO: Implement Supabase authentication
     router.push("/dashboard");
   };
@@ -75,13 +77,18 @@ export default function Login() {
                     <input type="checkbox" className="rounded border-input" />
                     <span className="text-muted-foreground">Remember me</span>
                   </label>
-                  <Link href="/forgot-password" className="text-primary hover:underline">
-                    Forgot password?
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign In"}
+                </Button>
+
+                <div className="text-center">
+                  <Link href="/forgot-password">
+                    <Button variant="link" className="text-sm text-primary">
+                      Forgot your password?
+                    </Button>
                   </Link>
                 </div>
-                <Button type="submit" className="w-full" size="lg">
-                  Sign In
-                </Button>
               </form>
 
               <div className="mt-6 text-center text-sm text-muted-foreground">
