@@ -152,15 +152,26 @@ export default function TenderDetailPage() {
   }
 
   const handleRunEvaluation = async () => {
-    if (!tender || !user?.organisationId) return;
+    if (!tender || !user) return;
 
     setIsEvaluating(true);
     setEvaluationError(null);
 
     try {
+      // First fetch the user's organisation ID
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("organisation_id")
+        .eq("id", user.id)
+        .single();
+
+      if (userError || !userData?.organisation_id) {
+        throw new Error("Could not find your organization profile");
+      }
+
       // Get company profile
       const companyProfile = await evaluationService.getCompanyProfile(
-        user.organisationId
+        userData.organisation_id
       );
 
       // Run evaluation
