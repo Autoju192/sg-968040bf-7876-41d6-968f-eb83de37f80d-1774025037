@@ -68,39 +68,39 @@ export default function TenderDetailPage() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      fetchTenderData();
+    if (typeof id === "string") {
+      fetchTenderData(id);
     }
   }, [id]);
 
-  async function fetchTenderData() {
+  async function fetchTenderData(tenderId: string) {
     try {
       const { data: tenderData, error: tenderError } = await supabase
         .from("tenders")
         .select("*")
-        .eq("id", id)
+        .eq("id", tenderId)
         .single();
 
       if (tenderError) throw tenderError;
-      setTender(tenderData);
+      setTender(tenderData as Tender);
 
       const { data: scoreData } = await supabase
         .from("tender_scores")
         .select("*")
-        .eq("tender_id", id)
+        .eq("tender_id", tenderId)
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
 
-      if (scoreData) setScore(scoreData);
+      if (scoreData) setScore(scoreData as TenderScore);
 
       const { data: messagesData } = await supabase
         .from("messages")
         .select("*")
-        .eq("tender_id", id)
+        .eq("tender_id", tenderId)
         .order("created_at", { ascending: true });
 
-      if (messagesData) setMessages(messagesData);
+      if (messagesData) setMessages(messagesData as Message[]);
     } catch (error) {
       console.error("Error fetching tender:", error);
     } finally {
@@ -109,13 +109,13 @@ export default function TenderDetailPage() {
   }
 
   async function handleSendMessage() {
-    if (!newMessage.trim() || !id) return;
+    if (!newMessage.trim() || typeof id !== "string") return;
 
     setSending(true);
     try {
       const userMessage = {
-        tender_id: id as string,
-        user_id: "temp-user-id",
+        tender_id: id,
+        user_id: "temp-user-id", // Will be replaced by actual user ID later
         content: newMessage,
         is_ai: false,
       };
@@ -128,7 +128,7 @@ export default function TenderDetailPage() {
 
       if (error) throw error;
 
-      setMessages((prev) => [...prev, data]);
+      setMessages((prev) => [...prev, data as Message]);
       setNewMessage("");
 
       const response = await fetch("/api/chat", {
@@ -143,8 +143,8 @@ export default function TenderDetailPage() {
       const { reply } = await response.json();
 
       const aiMessage = {
-        tender_id: id as string,
-        user_id: "system",
+        tender_id: id,
+        user_id: null,
         content: reply,
         is_ai: true,
       };
@@ -156,7 +156,7 @@ export default function TenderDetailPage() {
         .single();
 
       if (aiError) throw aiError;
-      setMessages((prev) => [...prev, aiData]);
+      setMessages((prev) => [...prev, aiData as Message]);
     } catch (error) {
       console.error("Error sending message:", error);
     } finally {

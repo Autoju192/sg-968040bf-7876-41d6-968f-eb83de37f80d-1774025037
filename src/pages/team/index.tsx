@@ -35,8 +35,9 @@ interface TeamMember {
   id: string;
   email: string;
   full_name: string;
-  role: "admin" | "bid_manager" | "contributor";
+  role: string;
   created_at: string;
+  organisation_id?: string;
 }
 
 export default function TeamPage() {
@@ -62,7 +63,7 @@ export default function TeamPage() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setMembers(data || []);
+      setMembers(data as TeamMember[] || []);
     } catch (error) {
       console.error("Error fetching team:", error);
     } finally {

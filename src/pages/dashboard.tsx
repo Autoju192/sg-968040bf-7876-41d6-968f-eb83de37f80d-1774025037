@@ -59,9 +59,12 @@ export default function Dashboard() {
   const recentActivity = tenders
     .slice(0, 5)
     .map(t => ({
-      tender: t.title,
+      id: t.id,
+      title: t.title,
+      type: t.status === "submitted" ? "submitted" : t.status === "new" ? "match" : "document",
       action: t.status === "new" ? "New tender added" : `Status: ${t.status}`,
       time: new Date(t.created_at || "").toLocaleDateString(),
+      score: t.ai_score
     }));
 
   const kpis = [
@@ -184,10 +187,10 @@ export default function Dashboard() {
                         <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full bg-primary"
-                            style={{ width: `${tender.score}%` }}
+                            style={{ width: `${tender.ai_score}%` }}
                           />
                         </div>
-                        <span className="font-medium text-primary">{tender.score}%</span>
+                        <span className="font-medium text-primary">{tender.ai_score}%</span>
                       </div>
                     </div>
                   </div>
