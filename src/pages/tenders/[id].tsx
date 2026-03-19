@@ -475,7 +475,9 @@ export default function TenderDetailPage() {
                   tenderId={tender.id} 
                   onUploadComplete={() => {
                     // Refresh tender data to show new files
-                    fetchTender();
+                    if (typeof id === "string") {
+                      fetchTenderData(id);
+                    }
                   }} 
                 />
               </CardContent>
