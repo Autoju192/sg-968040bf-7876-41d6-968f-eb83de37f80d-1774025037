@@ -27,17 +27,25 @@ export const authService = {
     role: "admin" | "bid_manager" | "contributor" = "bid_manager"
   ) {
     try {
+      console.log("Starting signup process...", { email, organisationName, role });
+
       // First, check if organization exists (case-insensitive)
-      const { data: existingOrg } = await supabase
+      const { data: existingOrg, error: checkError } = await supabase
         .from("organisations")
         .select("id, name")
         .ilike("name", organisationName)
-        .single();
+        .maybeSingle();
+
+      if (checkError) {
+        console.error("Error checking existing organisation:", checkError);
+      }
 
       let organisationId = existingOrg?.id;
 
       // Create organization if it doesn't exist
       if (!organisationId) {
+        console.log("Creating new organisation:", organisationName);
+        
         const { data: newOrg, error: orgError } = await supabase
           .from("organisations")
           .insert({ name: organisationName })
@@ -46,17 +54,32 @@ export const authService = {
 
         if (orgError) {
           console.error("Error creating organisation:", orgError);
+          console.error("Full error details:", JSON.stringify(orgError, null, 2));
+          
+          // Provide more specific error messages
+          if (orgError.code === "42501") {
+            return { 
+              error: { 
+                message: "Permission denied. Please contact support to enable organization creation." 
+              } 
+            };
+          }
+          
           return { 
             error: { 
-              message: "Failed to create organization. Please try again." 
+              message: `Failed to create organization: ${orgError.message || "Unknown database error"}` 
             } 
           };
         }
 
         organisationId = newOrg.id;
+        console.log("Organisation created successfully:", organisationId);
+      } else {
+        console.log("Using existing organisation:", organisationId);
       }
 
       // Sign up the user with Supabase Auth
+      console.log("Creating auth user...");
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -82,7 +105,10 @@ export const authService = {
         };
       }
 
+      console.log("Auth user created:", authData.user.id);
+
       // Create user profile in database
+      console.log("Creating user profile...");
       const { error: profileError } = await supabase
         .from("users")
         .insert({
@@ -96,6 +122,8 @@ export const authService = {
       if (profileError) {
         console.error("Error creating user profile:", profileError);
         // Continue anyway - the trigger should handle this
+      } else {
+        console.log("User profile created successfully");
       }
 
       return { data: authData, error: null };
