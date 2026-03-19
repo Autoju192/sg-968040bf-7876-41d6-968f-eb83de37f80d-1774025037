@@ -1,7 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/lib/supabase";
+import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default async function handler(
   req: NextApiRequest,
@@ -12,118 +20,171 @@ export default async function handler(
   }
 
   try {
-    const { message, tenderId, context } = req.body;
+    const { message, tenderId, userId } = req.body;
 
-    if (!OPENAI_API_KEY) {
-      return res.status(500).json({ error: "OpenAI API key not configured" });
+    if (!message || !tenderId) {
+      return res.status(400).json({
+        error: "Missing required fields: message and tenderId",
+      });
     }
 
-    // Fetch tender data for context
-    const { data: tender } = await supabase
+    // Fetch tender details
+    const { data: tender, error: tenderError } = await supabase
       .from("tenders")
-      .select("*, tender_scores(*), tender_files(*), tender_questions(*)")
+      .select("*")
       .eq("id", tenderId)
       .single();
 
-    // Fetch evidence library for context
+    if (tenderError || !tender) {
+      return res.status(404).json({ error: "Tender not found" });
+    }
+
+    // Fetch tender files
+    const { data: tenderFiles } = await supabase
+      .from("tender_files")
+      .select("*")
+      .eq("tender_id", tenderId);
+
+    // Fetch tender questions
+    const { data: questions } = await supabase
+      .from("tender_questions")
+      .select("*")
+      .eq("tender_id", tenderId);
+
+    // Fetch evidence library for the organization
     const { data: evidence } = await supabase
       .from("evidence_library")
       .select("*")
-      .limit(10);
+      .eq("organisation_id", tender.organisation_id);
 
-    // Fetch conversation history
-    const { data: history } = await supabase
+    // Fetch historical bids
+    const { data: historicalBids } = await supabase
+      .from("historical_bids")
+      .select("*")
+      .eq("organisation_id", tender.organisation_id)
+      .limit(5);
+
+    // Fetch previous messages for context
+    const { data: previousMessages } = await supabase
       .from("messages")
       .select("*")
       .eq("tender_id", tenderId)
       .order("created_at", { ascending: true })
-      .limit(20);
+      .limit(10);
 
-    // Build context-rich system prompt
-    const systemPrompt = `You are TenderFlow AI, an expert bid management assistant for UK care providers. You help users analyze tenders, identify risks, draft responses, and make bid/no-bid decisions.
+    // Build context for AI
+    const systemPrompt = `You are an AI bid assistant helping a UK care provider with tender ${tender.title}.
 
-TENDER CONTEXT:
-Title: ${tender?.title || "Unknown"}
-Authority: ${tender?.authority || "Unknown"}
-Deadline: ${tender?.deadline || "Unknown"}
-Value: £${tender?.value ? Number(tender.value).toLocaleString() : "Unknown"}
-Location: ${tender?.location || "Unknown"}
-Service Type: ${tender?.service_type || "Unknown"}
+CRITICAL INSTRUCTIONS:
+- Answer questions clearly and practically
+- Identify risks and missing evidence
+- Suggest improvements based on evidence library
+- NEVER invent compliance claims or certifications
+- Always use structured, well-formatted answers
+- Highlight key requirements and deadlines
+- Reference specific documents when available
 
-${tender?.tender_scores?.[0] ? `
-AI ANALYSIS:
-- Overall Score: ${tender.tender_scores[0].total_score}/100
-- Decision: ${(tender.tender_scores[0] as any).decision || 'Unknown'}
-- Service Fit: ${tender.tender_scores[0].service_fit}/100
-- Geography Fit: ${tender.tender_scores[0].geography_fit}/100
-- Compliance Fit: ${tender.tender_scores[0].compliance_fit}/100
-- Evidence Fit: ${tender.tender_scores[0].evidence_fit}/100
-- Reasoning: ${tender.tender_scores[0].reasoning}
+AVAILABLE CONTEXT:
+
+TENDER INFORMATION:
+- Title: ${tender.title}
+- Authority: ${tender.authority}
+- Location: ${tender.location}
+- Service Type: ${tender.service_type}
+- Value: ${tender.value}
+- Deadline: ${new Date(tender.deadline).toLocaleDateString()}
+- Description: ${tender.description || "No description available"}
+
+${questions && questions.length > 0 ? `
+TENDER QUESTIONS (${questions.length} questions):
+${questions.map((q: any, i: number) => `${i + 1}. ${q.question_text}\n   Category: ${q.category}\n   Required: ${q.is_mandatory ? "Yes" : "No"}`).join("\n")}
 ` : ""}
 
-${tender?.tender_questions?.length ? `
-KEY QUESTIONS (${tender.tender_questions.length} total):
-${tender.tender_questions.slice(0, 5).map((q: any, i: number) => `${i + 1}. ${q.question_text} (Section: ${q.section})`).join("\n")}
-` : ""}
+${evidence && evidence.length > 0 ? `
+EVIDENCE LIBRARY (${evidence.length} items available):
+${evidence.map((e: any) => `- ${e.title} (${e.category}): ${e.content?.substring(0, 150)}...`).join("\n")}
+` : "No evidence library items available."}
 
-${evidence?.length ? `
-AVAILABLE EVIDENCE LIBRARY:
-${evidence.map((e: any) => `- ${e.category}: ${e.title}`).join("\n")}
-` : ""}
+${historicalBids && historicalBids.length > 0 ? `
+HISTORICAL BIDS (${historicalBids.length} past bids):
+${historicalBids.map((b: any) => `- ${b.tender_title}: ${b.outcome} - ${b.notes?.substring(0, 100)}...`).join("\n")}
+` : "No historical bid data available."}
 
-YOUR CAPABILITIES:
-1. Summarize and analyze tender requirements
-2. Identify risks and opportunities
-3. Assess bid/no-bid decisions
-4. Draft responses using evidence library
-5. Suggest missing evidence or documentation
-6. Answer questions about CQC compliance, safeguarding, quality standards
-7. Help with mobilization plans and method statements
+${tenderFiles && tenderFiles.length > 0 ? `
+UPLOADED DOCUMENTS (${tenderFiles.length} files):
+${tenderFiles.map((f: any) => `- ${f.file_name} (${f.file_type})`).join("\n")}
+` : "No documents uploaded yet."}
 
-Be concise, practical, and focused on winning bids. Use UK care sector terminology. Reference specific evidence when drafting responses.`;
+RESPONSE FORMAT:
+- Use clear headings and bullet points
+- Highlight key requirements with **bold text**
+- Flag risks with ⚠️ WARNING:
+- Suggest evidence with 📚 EVIDENCE NEEDED:
+- Use numbered steps for complex answers
+- Reference specific documents when applicable
 
-    // Build conversation history
-    const messages = [
+Remember: Be helpful, practical, and never make up compliance information.`;
+
+    // Build message history
+    const messages: any[] = [
       { role: "system", content: systemPrompt },
-      ...(history?.map((m: any) => ({
-        role: m.is_ai ? "assistant" : "user",
-        content: m.content,
-      })) || []),
-      { role: "user", content: message },
     ];
 
-    // Call OpenAI
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || "OpenAI API error");
+    // Add previous conversation for context
+    if (previousMessages && previousMessages.length > 0) {
+      previousMessages.forEach((msg: any) => {
+        messages.push({
+          role: msg.sender === "user" ? "user" : "assistant",
+          content: msg.content,
+        });
+      });
     }
 
-    const aiReply = data.choices[0]?.message?.content || "I apologize, I couldn't generate a response.";
+    // Add current user message
+    messages.push({ role: "user", content: message });
 
-    res.status(200).json({
-      reply: aiReply,
-      usage: data.usage,
+    // Call OpenAI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 1500,
     });
-  } catch (error) {
-    console.error("Chat error:", error);
-    res.status(500).json({
+
+    const aiResponse = completion.choices[0]?.message?.content;
+
+    if (!aiResponse) {
+      throw new Error("No response from OpenAI");
+    }
+
+    // Save messages to database
+    await supabase.from("messages").insert([
+      {
+        tender_id: tenderId,
+        user_id: userId,
+        sender: "user",
+        content: message,
+      },
+      {
+        tender_id: tenderId,
+        user_id: userId,
+        sender: "assistant",
+        content: aiResponse,
+      },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      response: aiResponse,
+    });
+  } catch (error: unknown) {
+    console.error("Error in chat API:", error);
+
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+
+    return res.status(500).json({
       error: "Failed to process chat message",
-      reply: "I encountered an error processing your request. Please try again.",
+      details: errorMessage,
     });
   }
 }
