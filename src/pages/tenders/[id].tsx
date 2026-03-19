@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { FileUploader } from "@/components/FileUploader";
+import { DocumentExporter } from "@/components/DocumentExporter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -485,12 +486,39 @@ export default function TenderDetailPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Generated Documents</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Generated Documents</CardTitle>
+                  <DocumentExporter 
+                    title={`${tender.title} - Bid Response`}
+                    content={[
+                      {
+                        heading: "Executive Summary",
+                        content: "This is a placeholder for the generated executive summary. The AI will populate this based on the tender requirements and your evidence library."
+                      },
+                      {
+                        heading: "Method Statement",
+                        content: "We provide high-quality care services tailored to the specific needs of the local authority. Our safeguarding protocols meet all CQC standards."
+                      }
+                    ]}
+                  />
+                </div>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No documents generated yet
-                </p>
+                <div className="space-y-4">
+                  <div className="p-4 border border-border rounded-lg bg-muted/30">
+                    <div className="flex items-center gap-3 mb-2">
+                      <FileText className="w-5 h-5 text-blue-500" />
+                      <h4 className="font-medium">Draft Method Statement</h4>
+                      <Badge variant="outline">Draft</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Generated from AI Analysis • Contains answers to 3 mandatory questions
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" size="sm">Edit Document</Button>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
