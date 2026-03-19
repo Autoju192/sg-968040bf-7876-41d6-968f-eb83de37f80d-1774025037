@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { FileUploader } from "@/components/FileUploader";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
   FileText,
   MessageSquare,
@@ -25,6 +27,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Tender, TenderScore } from "@/services/tenderService";
+import { evaluationService, type TenderEvaluation, type CompanyProfile } from "@/services/evaluationService";
+import { Loader2 } from "lucide-react";
 
 interface Message {
   id: string;
@@ -36,6 +40,7 @@ interface Message {
 export default function TenderDetailPage() {
   const router = useRouter();
   const { id } = router.query;
+  const { user } = useAuth();
 
   const [tender, setTender] = useState<Tender | null>(null);
   const [score, setScore] = useState<TenderScore | null>(null);
@@ -43,6 +48,9 @@ export default function TenderDetailPage() {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [evaluation, setEvaluation] = useState<TenderEvaluation | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluationError, setEvaluationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof id === "string") {
@@ -142,6 +150,52 @@ export default function TenderDetailPage() {
       setSending(false);
     }
   }
+
+  const handleRunEvaluation = async () => {
+    if (!tender || !user?.organisationId) return;
+
+    setIsEvaluating(true);
+    setEvaluationError(null);
+
+    try {
+      // Get company profile
+      const companyProfile = await evaluationService.getCompanyProfile(
+        user.organisationId
+      );
+
+      // Run evaluation
+      const result = await evaluationService.evaluateTender(
+        tender.id,
+        companyProfile
+      );
+
+      setEvaluation(result);
+
+      // Save to database
+      await evaluationService.saveEvaluation(tender.id, result);
+
+      // Refresh tender data to show updated score
+      const { data: updatedTender } = await supabase
+        .from("tenders")
+        .select(`
+          *,
+          tender_scores (*)
+        `)
+        .eq("id", id as string)
+        .single();
+
+      if (updatedTender) {
+        setTender(updatedTender);
+      }
+    } catch (error) {
+      console.error("Evaluation error:", error);
+      setEvaluationError(
+        error instanceof Error ? error.message : "Failed to evaluate tender"
+      );
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
 
   if (loading || !tender) {
     return (
@@ -299,90 +353,234 @@ export default function TenderDetailPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="analysis">
-            <div className="grid grid-cols-2 gap-6">
-              {/* Score Breakdown */}
-              <Card className="shadow-medium">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="w-5 h-5 text-primary" />
-                    Score Breakdown
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {scoreBreakdown.map((item) => (
-                    <div key={item.label}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">{item.label}</span>
-                        <span className={`text-sm font-bold ${item.color}`}>{item.value}%</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${item.color.replace("text", "bg")}`}
-                          style={{ width: `${item.value}%` }}
-                        />
+          <TabsContent value="analysis" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>AI Tender Evaluation</CardTitle>
+                    <CardDescription>
+                      Get an instant AI-powered assessment of this tender's suitability
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={handleRunEvaluation}
+                    disabled={isEvaluating}
+                  >
+                    {isEvaluating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Evaluating...
+                      </>
+                    ) : (
+                      "Run AI Evaluation"
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {evaluationError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Evaluation Failed</AlertTitle>
+                    <AlertDescription>{evaluationError}</AlertDescription>
+                  </Alert>
+                )}
+
+                {evaluation && (
+                  <div className="space-y-6">
+                    {/* Decision Badge */}
+                    <div className="flex items-center gap-4">
+                      <Badge
+                        variant={
+                          evaluation.decision === "Bid"
+                            ? "default"
+                            : evaluation.decision === "Review"
+                            ? "secondary"
+                            : "destructive"
+                        }
+                        className="text-lg px-4 py-2"
+                      >
+                        {evaluation.decision}
+                      </Badge>
+                      <div>
+                        <div className="text-3xl font-bold">{evaluation.score}%</div>
+                        <div className="text-sm text-muted-foreground">
+                          Overall Score
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
 
-              {/* Reasoning */}
-              {score && score.reasoning && (
-                <Card className="shadow-medium">
-                  <CardHeader>
-                    <CardTitle>AI Reasoning</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{score.reasoning}</p>
-                  </CardContent>
-                </Card>
-              )}
+                    {/* Score Breakdown */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Service Fit</span>
+                          <span className="font-medium">
+                            {evaluation.service_fit}/25
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${(evaluation.service_fit / 25) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
 
-              {/* Risks */}
-              {score && score.risks && score.risks.length > 0 && (
-                <Card className="shadow-medium">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-destructive" />
-                      Identified Risks
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {score.risks.map((risk, idx) => (
-                        <li key={idx} className="flex gap-2 text-sm">
-                          <span className="text-destructive">•</span>
-                          <span>{risk}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Geography Fit</span>
+                          <span className="font-medium">
+                            {evaluation.geography_fit}/15
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${(evaluation.geography_fit / 15) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
 
-              {/* Missing Evidence */}
-              {score && score.missing_evidence && score.missing_evidence.length > 0 && (
-                <Card className="shadow-medium">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-orange-600" />
-                      Missing Evidence
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {score.missing_evidence.map((item, idx) => (
-                        <li key={idx} className="flex gap-2 text-sm">
-                          <span className="text-orange-600">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Compliance Fit</span>
+                          <span className="font-medium">
+                            {evaluation.compliance_fit}/20
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${(evaluation.compliance_fit / 20) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Evidence Fit</span>
+                          <span className="font-medium">
+                            {evaluation.evidence_fit}/20
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${(evaluation.evidence_fit / 20) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Commercial Viability</span>
+                          <span className="font-medium">
+                            {evaluation.commercial_viability}/10
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${(evaluation.commercial_viability / 10) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Effort Score</span>
+                          <span className="font-medium">
+                            {evaluation.effort}/10
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${(evaluation.effort / 10) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Why Bid/No Bid */}
+                    <div>
+                      <h3 className="font-semibold mb-2">Key Reasons</h3>
+                      <ul className="space-y-1">
+                        {evaluation.why.map((reason, index) => (
+                          <li key={index} className="flex items-start gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+                            <span className="text-sm">{reason}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Risks */}
+                    {evaluation.risks.length > 0 && (
+                      <div>
+                        <h3 className="font-semibold mb-2">Identified Risks</h3>
+                        <ul className="space-y-1">
+                          {evaluation.risks.map((risk, index) => (
+                            <li key={index} className="flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5" />
+                              <span className="text-sm">{risk}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Missing Evidence */}
+                    {evaluation.missing_evidence.length > 0 && (
+                      <div>
+                        <h3 className="font-semibold mb-2">Missing Evidence</h3>
+                        <ul className="space-y-1">
+                          {evaluation.missing_evidence.map((evidence, index) => (
+                            <li key={index} className="flex items-start gap-2">
+                              <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
+                              <span className="text-sm">{evidence}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Next Steps */}
+                    <div>
+                      <h3 className="font-semibold mb-2">Recommended Next Steps</h3>
+                      <ol className="space-y-1 list-decimal list-inside">
+                        {evaluation.next_steps.map((step, index) => (
+                          <li key={index} className="text-sm">
+                            {step}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+                )}
+
+                {!evaluation && !isEvaluating && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Click "Run AI Evaluation" to get an instant assessment</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="chat">
