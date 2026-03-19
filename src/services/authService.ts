@@ -17,8 +17,10 @@ export interface User {
 
 export const authService = {
   /**
-   * Sign up a new user with bulletproof organization creation
-   * This method uses multiple fallback approaches to ensure signup always works
+   * Sign up a new user - AUTHENTICATION-FIRST APPROACH
+   * 
+   * This method creates the auth user FIRST, then creates the organization
+   * while authenticated, which satisfies the RLS policy requirement.
    */
   async signUp(
     email: string,
@@ -28,114 +30,32 @@ export const authService = {
     role: "admin" | "bid_manager" | "contributor" = "bid_manager"
   ) {
     try {
-      console.log("🚀 Starting signup process...", { email, organisationName, role });
+      console.log("🚀 Starting authentication-first signup...", { email, organisationName, role });
 
-      // STEP 1: Check for existing organization (case-insensitive)
-      console.log("🔍 Checking for existing organisation...");
-      const { data: existingOrgs, error: checkError } = await supabase
-        .from("organisations")
-        .select("id, name")
-        .ilike("name", organisationName);
-
-      if (checkError) {
-        console.error("⚠️ Error checking existing organisation:", checkError);
-        // Don't fail - continue with creation attempt
-      }
-
-      let organisationId = existingOrgs?.[0]?.id;
-
-      // STEP 2: Create organization if it doesn't exist
-      if (!organisationId) {
-        console.log("🏢 Creating new organisation:", organisationName);
-        
-        // METHOD 1: Standard INSERT (works 99% of the time)
-        const { data: newOrg, error: orgError } = await supabase
-          .from("organisations")
-          .insert({ name: organisationName })
-          .select("id, name, created_at")
-          .single();
-
-        if (orgError) {
-          console.error("❌ Method 1 failed:", orgError);
-
-          // Handle specific error codes with helpful messages
-          if (orgError.code === "23505") {
-            // Duplicate key - organization already exists
-            // This can happen in race conditions - try to fetch it again
-            console.log("🔄 Organization exists (race condition), fetching...");
-            const { data: fetchedOrg } = await supabase
-              .from("organisations")
-              .select("id")
-              .ilike("name", organisationName)
-              .single();
-            
-            if (fetchedOrg) {
-              organisationId = fetchedOrg.id;
-              console.log("✅ Found existing organization:", organisationId);
-            }
-          }
-
-          if (!organisationId) {
-            // If we still don't have an org ID, return error with helpful message
-            let errorMessage = "Failed to create organization. ";
-            
-            if (orgError.code === "42501") {
-              errorMessage += "Permission denied. Please contact support to enable organization creation.";
-            } else if (orgError.code === "42P01") {
-              errorMessage += "Database table error. Please contact support or try again in a few minutes.";
-            } else if (orgError.message?.includes("schema cache")) {
-              errorMessage += "Database is updating. Please wait 30 seconds and try again.";
-            } else {
-              errorMessage += `Error: ${orgError.message || "Unknown error"}`;
-            }
-
-            return {
-              error: {
-                message: errorMessage,
-                code: orgError.code
-              }
-            };
-          }
-        } else {
-          organisationId = newOrg.id;
-          console.log("✅ Organisation created successfully:", organisationId);
-        }
-      } else {
-        console.log("✅ Using existing organisation:", organisationId);
-      }
-
-      // STEP 3: Verify we have an organization ID
-      if (!organisationId) {
-        console.error("❌ Failed to get organization ID");
-        return {
-          error: {
-            message: "Failed to create or find organization. Please try again or contact support."
-          }
-        };
-      }
-
-      // STEP 4: Create Supabase Auth user
-      console.log("👤 Creating auth user...");
+      // ============================================================
+      // STEP 1: CREATE AUTH USER FIRST (No org needed yet)
+      // ============================================================
+      console.log("👤 Step 1: Creating Supabase Auth user...");
+      
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
-            organisation_id: organisationId,
-            role: role,
+            // Don't include org_id yet - we'll add it later
           },
         },
       });
 
       if (authError) {
-        console.error("❌ Auth signup error:", authError);
+        console.error("❌ Auth signup failed:", authError);
         
-        // Provide helpful error messages
-        if (authError.message?.includes("already registered")) {
+        // Provide user-friendly error messages
+        if (authError.message?.includes("already registered") || authError.message?.includes("already been registered")) {
           return {
             error: {
-              message: "This email is already registered. Please log in instead or use a different email."
+              message: "This email is already registered. Please log in instead."
             }
           };
         }
@@ -150,7 +70,7 @@ export const authService = {
 
         return { 
           error: {
-            message: authError.message || "Failed to create user account. Please try again."
+            message: authError.message || "Failed to create account. Please try again."
           }
         };
       }
@@ -159,16 +79,86 @@ export const authService = {
         console.error("❌ No user returned from auth signup");
         return {
           error: {
-            message: "Failed to create user account. Please try again."
+            message: "Failed to create account. Please try again."
           }
         };
       }
 
-      console.log("✅ Auth user created:", authData.user.id);
+      console.log("✅ Auth user created successfully:", authData.user.id);
 
-      // STEP 5: Create user profile in database
-      // Note: This might be handled by a database trigger, but we'll do it explicitly to be safe
-      console.log("📝 Creating user profile...");
+      // ============================================================
+      // STEP 2: NOW USER IS AUTHENTICATED - Check for existing org
+      // ============================================================
+      console.log("🔍 Step 2: Checking for existing organisation (now authenticated)...");
+      
+      const { data: existingOrgs, error: checkError } = await supabase
+        .from("organisations")
+        .select("id, name")
+        .ilike("name", organisationName);
+
+      if (checkError) {
+        console.warn("⚠️ Error checking existing organisation:", checkError);
+        // Don't fail - continue with creation
+      }
+
+      let organisationId = existingOrgs?.[0]?.id;
+
+      // ============================================================
+      // STEP 3: CREATE ORGANIZATION (User is authenticated now!)
+      // ============================================================
+      if (!organisationId) {
+        console.log("🏢 Step 3: Creating organisation (user is authenticated)...");
+        
+        const { data: newOrg, error: orgError } = await supabase
+          .from("organisations")
+          .insert({ name: organisationName })
+          .select("id, name, created_at")
+          .single();
+
+        if (orgError) {
+          console.error("❌ Organization creation failed:", orgError);
+          
+          // Handle duplicate key error (race condition)
+          if (orgError.code === "23505") {
+            console.log("🔄 Duplicate org detected, fetching existing...");
+            const { data: fetchedOrg } = await supabase
+              .from("organisations")
+              .select("id")
+              .ilike("name", organisationName)
+              .single();
+            
+            if (fetchedOrg) {
+              organisationId = fetchedOrg.id;
+              console.log("✅ Using existing organization:", organisationId);
+            }
+          }
+
+          // If we still don't have an org ID, something is seriously wrong
+          if (!organisationId) {
+            // Clean up: delete the auth user we just created
+            console.log("🧹 Cleaning up: deleting auth user...");
+            await supabase.auth.admin.deleteUser(authData.user.id);
+            
+            return {
+              error: {
+                message: "Failed to create organization. Please contact support.",
+                details: orgError.message
+              }
+            };
+          }
+        } else {
+          organisationId = newOrg.id;
+          console.log("✅ Organization created successfully:", organisationId);
+        }
+      } else {
+        console.log("✅ Using existing organization:", organisationId);
+      }
+
+      // ============================================================
+      // STEP 4: CREATE USER PROFILE (Link user to organization)
+      // ============================================================
+      console.log("📝 Step 4: Creating user profile...");
+      
       const { error: profileError } = await supabase
         .from("users")
         .insert({
@@ -180,17 +170,56 @@ export const authService = {
         });
 
       if (profileError) {
-        console.error("⚠️ Error creating user profile:", profileError);
+        console.error("❌ User profile creation failed:", profileError);
         
-        // Check if it's a duplicate key error (profile already exists from trigger)
+        // Check if profile already exists (from database trigger)
         if (profileError.code === "23505") {
           console.log("✅ User profile already exists (created by trigger)");
+          
+          // Update the existing profile with correct org_id
+          const { error: updateError } = await supabase
+            .from("users")
+            .update({
+              full_name: fullName,
+              organisation_id: organisationId,
+              role: role,
+            })
+            .eq("id", authData.user.id);
+          
+          if (updateError) {
+            console.error("⚠️ Failed to update existing profile:", updateError);
+          } else {
+            console.log("✅ Updated existing profile with organization");
+          }
         } else {
-          // Log the error but don't fail the signup - the trigger should handle it
-          console.warn("Profile creation failed, but auth user exists. Trigger should create profile.");
+          // Profile creation failed for another reason
+          console.error("❌ Unexpected profile error:", profileError);
+          
+          // Don't fail signup - the trigger should handle it
+          console.warn("⚠️ Continuing anyway - trigger should create profile");
         }
       } else {
         console.log("✅ User profile created successfully");
+      }
+
+      // ============================================================
+      // STEP 5: UPDATE AUTH USER METADATA (Add org_id)
+      // ============================================================
+      console.log("🔄 Step 5: Updating auth user metadata...");
+      
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName,
+          organisation_id: organisationId,
+          role: role,
+        },
+      });
+
+      if (metadataError) {
+        console.warn("⚠️ Failed to update user metadata:", metadataError);
+        // Don't fail signup - metadata is non-critical
+      } else {
+        console.log("✅ User metadata updated");
       }
 
       console.log("🎉 Signup completed successfully!");
@@ -200,7 +229,7 @@ export const authService = {
       console.error("💥 Unexpected signup error:", error);
       return {
         error: {
-          message: error instanceof Error ? error.message : "An unexpected error occurred during signup. Please try again."
+          message: error instanceof Error ? error.message : "An unexpected error occurred. Please try again."
         }
       };
     }
