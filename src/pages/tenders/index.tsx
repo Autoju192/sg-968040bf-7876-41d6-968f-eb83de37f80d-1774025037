@@ -28,7 +28,7 @@ interface Tender {
   title: string;
   authority: string;
   deadline: string;
-  value: string;
+  value: number;
   ai_score: number;
   decision: string | null;
   status: string;
