@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Filter, FileText } from "lucide-react";
+import { Plus, Search, Filter, FileText, X, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
@@ -34,7 +34,11 @@ interface Tender {
   status: string;
   location: string;
   service_type: string;
+  created_at: string;
 }
+
+type SortField = "deadline" | "value" | "ai_score" | "created_at" | "title";
+type SortOrder = "asc" | "desc";
 
 export default function TendersPage() {
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -42,17 +46,20 @@ export default function TendersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
+  const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
+  const [scoreFilter, setScoreFilter] = useState("all");
+  const [sortField, setSortField] = useState<SortField>("deadline");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
 
   useEffect(() => {
     fetchTenders();
-  }, [statusFilter, locationFilter]);
+  }, [statusFilter, locationFilter, serviceTypeFilter, scoreFilter, sortField, sortOrder]);
 
   async function fetchTenders() {
     try {
       let query = supabase
         .from("tenders")
-        .select("*")
-        .order("deadline", { ascending: true });
+        .select("*");
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
@@ -61,6 +68,22 @@ export default function TendersPage() {
       if (locationFilter !== "all") {
         query = query.eq("location", locationFilter);
       }
+
+      if (serviceTypeFilter !== "all") {
+        query = query.eq("service_type", serviceTypeFilter);
+      }
+
+      if (scoreFilter !== "all") {
+        if (scoreFilter === "high") {
+          query = query.gte("ai_score", 80);
+        } else if (scoreFilter === "medium") {
+          query = query.gte("ai_score", 60).lt("ai_score", 80);
+        } else if (scoreFilter === "low") {
+          query = query.lt("ai_score", 60);
+        }
+      }
+
+      query = query.order(sortField, { ascending: sortOrder === "asc" });
 
       const { data, error } = await query;
       if (error) throw error;
@@ -90,6 +113,33 @@ export default function TendersPage() {
     return <Badge variant="secondary">Review</Badge>;
   }
 
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  }
+
+  function clearFilters() {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setLocationFilter("all");
+    setServiceTypeFilter("all");
+    setScoreFilter("all");
+    setSortField("deadline");
+    setSortOrder("asc");
+  }
+
+  const activeFilterCount = [
+    statusFilter !== "all",
+    locationFilter !== "all",
+    serviceTypeFilter !== "all",
+    scoreFilter !== "all",
+    searchQuery !== ""
+  ].filter(Boolean).length;
+
   return (
     <Layout>
       <SEO
@@ -116,44 +166,131 @@ export default function TendersPage() {
 
         {/* Filters */}
         <div className="bg-card rounded-lg border border-border p-6 mb-6 shadow-soft">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="md:col-span-2">
-              <div className="relative">
+          <div className="space-y-4">
+            {/* Search and Clear */}
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search tenders..."
+                  placeholder="Search tenders by title or authority..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
                 />
               </div>
+              {activeFilterCount > 0 && (
+                <Button variant="outline" onClick={clearFilters}>
+                  <X className="w-4 h-4 mr-2" />
+                  Clear All ({activeFilterCount})
+                </Button>
+              )}
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="new">New</SelectItem>
-                <SelectItem value="review">Review</SelectItem>
-                <SelectItem value="bid">Bid</SelectItem>
-                <SelectItem value="no_bid">No Bid</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={locationFilter} onValueChange={setLocationFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Location" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Locations</SelectItem>
-                <SelectItem value="London">London</SelectItem>
-                <SelectItem value="Manchester">Manchester</SelectItem>
-                <SelectItem value="Birmingham">Birmingham</SelectItem>
-                <SelectItem value="Leeds">Leeds</SelectItem>
-              </SelectContent>
-            </Select>
+
+            {/* Filter Dropdowns */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="new">New</SelectItem>
+                  <SelectItem value="review">Review</SelectItem>
+                  <SelectItem value="bid">Bid</SelectItem>
+                  <SelectItem value="no_bid">No Bid</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  <SelectItem value="London">London</SelectItem>
+                  <SelectItem value="Manchester">Manchester</SelectItem>
+                  <SelectItem value="Birmingham">Birmingham</SelectItem>
+                  <SelectItem value="Leeds">Leeds</SelectItem>
+                  <SelectItem value="Liverpool">Liverpool</SelectItem>
+                  <SelectItem value="Newcastle">Newcastle</SelectItem>
+                  <SelectItem value="Bristol">Bristol</SelectItem>
+                  <SelectItem value="Sheffield">Sheffield</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={serviceTypeFilter} onValueChange={setServiceTypeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Service Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Services</SelectItem>
+                  <SelectItem value="Adult Social Care">Adult Social Care</SelectItem>
+                  <SelectItem value="Domiciliary Care">Domiciliary Care</SelectItem>
+                  <SelectItem value="Learning Disabilities">Learning Disabilities</SelectItem>
+                  <SelectItem value="Mental Health">Mental Health</SelectItem>
+                  <SelectItem value="Residential Care">Residential Care</SelectItem>
+                  <SelectItem value="Supported Living">Supported Living</SelectItem>
+                  <SelectItem value="Children's Services">Children&apos;s Services</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={scoreFilter} onValueChange={setScoreFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="AI Score" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Scores</SelectItem>
+                  <SelectItem value="high">High (80%+)</SelectItem>
+                  <SelectItem value="medium">Medium (60-79%)</SelectItem>
+                  <SelectItem value="low">Low (&lt;60%)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Active Filter Chips */}
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {searchQuery && (
+                  <Badge variant="secondary" className="gap-1">
+                    Search: {searchQuery}
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => setSearchQuery("")} />
+                  </Badge>
+                )}
+                {statusFilter !== "all" && (
+                  <Badge variant="secondary" className="gap-1">
+                    Status: {statusFilter}
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => setStatusFilter("all")} />
+                  </Badge>
+                )}
+                {locationFilter !== "all" && (
+                  <Badge variant="secondary" className="gap-1">
+                    Location: {locationFilter}
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => setLocationFilter("all")} />
+                  </Badge>
+                )}
+                {serviceTypeFilter !== "all" && (
+                  <Badge variant="secondary" className="gap-1">
+                    Service: {serviceTypeFilter}
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => setServiceTypeFilter("all")} />
+                  </Badge>
+                )}
+                {scoreFilter !== "all" && (
+                  <Badge variant="secondary" className="gap-1">
+                    Score: {scoreFilter}
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => setScoreFilter("all")} />
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Results Count */}
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {filteredTenders.length} of {tenders.length} tenders
+          </p>
         </div>
 
         {/* Table */}
@@ -161,11 +298,43 @@ export default function TendersPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="font-semibold">Tender</TableHead>
+                <TableHead className="font-semibold">
+                  <button
+                    onClick={() => toggleSort("title")}
+                    className="flex items-center gap-1 hover:text-foreground"
+                  >
+                    Tender
+                    <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </TableHead>
                 <TableHead className="font-semibold">Authority</TableHead>
-                <TableHead className="font-semibold">Deadline</TableHead>
-                <TableHead className="font-semibold">Value</TableHead>
-                <TableHead className="font-semibold">AI Score</TableHead>
+                <TableHead className="font-semibold">
+                  <button
+                    onClick={() => toggleSort("deadline")}
+                    className="flex items-center gap-1 hover:text-foreground"
+                  >
+                    Deadline
+                    <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </TableHead>
+                <TableHead className="font-semibold">
+                  <button
+                    onClick={() => toggleSort("value")}
+                    className="flex items-center gap-1 hover:text-foreground"
+                  >
+                    Value
+                    <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </TableHead>
+                <TableHead className="font-semibold">
+                  <button
+                    onClick={() => toggleSort("ai_score")}
+                    className="flex items-center gap-1 hover:text-foreground"
+                  >
+                    AI Score
+                    <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </TableHead>
                 <TableHead className="font-semibold">Decision</TableHead>
                 <TableHead className="font-semibold">Actions</TableHead>
               </TableRow>
