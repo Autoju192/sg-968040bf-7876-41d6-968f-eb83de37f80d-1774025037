@@ -558,54 +558,54 @@ export default function TendersPage() {
                 No tenders found. Try adjusting your filters.
               </div>
             ) : (
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-12">
+                      <TableHead className="w-12 sticky left-0 bg-background z-10">
                         <Checkbox
                           checked={selectAll}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
                       <TableHead
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer hover:bg-muted/50 min-w-[200px] sticky left-12 bg-background z-10"
                         onClick={() => handleSort("title")}
                       >
                         Title
                         <SortIcon field="title" />
                       </TableHead>
                       <TableHead
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer hover:bg-muted/50 min-w-[150px]"
                         onClick={() => handleSort("authority")}
                       >
                         Authority
                         <SortIcon field="authority" />
                       </TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Service Type</TableHead>
+                      <TableHead className="min-w-[120px]">Location</TableHead>
+                      <TableHead className="min-w-[150px]">Service Type</TableHead>
                       <TableHead
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer hover:bg-muted/50 min-w-[100px]"
                         onClick={() => handleSort("deadline")}
                       >
                         Deadline
                         <SortIcon field="deadline" />
                       </TableHead>
                       <TableHead
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer hover:bg-muted/50 min-w-[100px]"
                         onClick={() => handleSort("value")}
                       >
                         Value
                         <SortIcon field="value" />
                       </TableHead>
                       <TableHead
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer hover:bg-muted/50 min-w-[120px]"
                         onClick={() => handleSort("score")}
                       >
                         AI Score
                         <SortIcon field="score" />
                       </TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="min-w-[100px]">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -620,13 +620,13 @@ export default function TendersPage() {
                           router.push(`/tenders/${tender.id}`);
                         }}
                       >
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <TableCell onClick={(e) => e.stopPropagation()} className="sticky left-0 bg-background">
                           <Checkbox
                             checked={selectedTenders.has(tender.id)}
                             onCheckedChange={() => toggleSelectTender(tender.id)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium sticky left-12 bg-background">
                           {tender.title}
                         </TableCell>
                         <TableCell>{tender.authority}</TableCell>

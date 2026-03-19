@@ -7,6 +7,7 @@ interface SendEmailParams {
   subject: string;
   html: string;
   from?: string;
+  scheduledAt?: string;
 }
 
 interface TenderDeadlineReminderParams {
@@ -79,14 +80,21 @@ interface WeeklyDigestParams {
 
 export const emailService = {
   // Core email sending function
-  async sendEmail({ to, subject, html, from = "TenderFlow AI <notifications@tenderflow.ai>" }: SendEmailParams) {
+  async sendEmail({ to, subject, html, from = "TenderFlow AI <notifications@tenderflow.ai>", scheduledAt }: SendEmailParams) {
     try {
-      const { data, error } = await resend.emails.send({
+      const payload: any = {
         from,
         to,
         subject,
         html,
-      });
+      };
+
+      // Support Resend's built-in scheduling feature (ISO 8601 timestamp)
+      if (scheduledAt) {
+        payload.scheduled_at = scheduledAt;
+      }
+
+      const { data, error } = await resend.emails.send(payload);
 
       if (error) {
         console.error("❌ Email send error:", error);

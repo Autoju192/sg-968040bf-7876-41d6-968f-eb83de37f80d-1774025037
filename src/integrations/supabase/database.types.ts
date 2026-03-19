@@ -704,6 +704,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          onboarding_completed: boolean | null
           organisation_id: string
           role: string
         }
@@ -712,6 +713,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          onboarding_completed?: boolean | null
           organisation_id: string
           role: string
         }
@@ -720,6 +722,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          onboarding_completed?: boolean | null
           organisation_id?: string
           role?: string
         }

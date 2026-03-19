@@ -18,7 +18,7 @@ interface OnboardingStep {
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const { user, organization } = useAuth();
+  const { user, organisation } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -50,13 +50,13 @@ export function OnboardingWizard() {
         // Create sample evidence items
         const sampleEvidence = [
           {
-            organisation_id: organization?.id,
+            organisation_id: organisation?.id,
             title: "Company Profile",
             category: "Company Profile",
             content: "Add your company overview, mission, and values here...",
           },
           {
-            organisation_id: organization?.id,
+            organisation_id: organisation?.id,
             title: "Safeguarding Policy",
             category: "Safeguarding",
             content: "Add your safeguarding policy details here...",

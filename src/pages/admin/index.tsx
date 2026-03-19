@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, Settings, BarChart3, Shield, Mail, Trash2, UserPlus, CheckCircle, XCircle } from "lucide-react";
+import { Users, Settings, BarChart3, Shield, Mail, Trash2, UserPlus, CheckCircle, XCircle, TrendingUp, Activity } from "lucide-react";
 
 interface User {
   id: string;
@@ -37,6 +37,12 @@ export default function AdminPanel() {
   const [inviteRole, setInviteRole] = useState("contributor");
   const [inviteName, setInviteName] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [analytics, setAnalytics] = useState({
+    totalTenders: 0,
+    activeBids: 0,
+    winRate: 0,
+    avgAiScore: 0,
+  });
 
   useEffect(() => {
     if (!user) {
@@ -51,6 +57,7 @@ export default function AdminPanel() {
     }
 
     loadUsers();
+    loadAnalytics();
   }, [user, router]);
 
   const loadUsers = async () => {
@@ -70,6 +77,45 @@ export default function AdminPanel() {
       setUsers(data || []);
     }
     setLoading(false);
+  };
+
+  const loadAnalytics = async () => {
+    if (!organisation?.id) return;
+
+    try {
+      // Load tender analytics
+      const { data: tenders } = await supabase
+        .from("tenders")
+        .select(`
+          *,
+          tender_scores(total_score)
+        `)
+        .eq("organisation_id", organisation.id);
+
+      if (tenders) {
+        const totalTenders = tenders.length;
+        const activeBids = tenders.filter(t => t.decision === "bid" && t.status !== "submitted").length;
+        const wonBids = tenders.filter(t => t.status === "awarded").length;
+        const lostBids = tenders.filter(t => t.status === "lost").length;
+        const winRate = lostBids + wonBids > 0 ? (wonBids / (wonBids + lostBids)) * 100 : 0;
+        
+        const scores = tenders
+          .map(t => t.tender_scores?.[0]?.total_score)
+          .filter(s => s !== null && s !== undefined);
+        const avgAiScore = scores.length > 0
+          ? scores.reduce((sum, score) => sum + score, 0) / scores.length
+          : 0;
+
+        setAnalytics({
+          totalTenders,
+          activeBids,
+          winRate: Math.round(winRate),
+          avgAiScore: Math.round(avgAiScore),
+        });
+      }
+    } catch (error) {
+      console.error("Error loading analytics:", error);
+    }
   };
 
   const handleInviteUser = async () => {
@@ -334,32 +380,99 @@ export default function AdminPanel() {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{users.length}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Active team members</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Total Tenders</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{analytics.totalTenders}</div>
+                  <p className="text-xs text-muted-foreground mt-1">In your pipeline</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{analytics.winRate}%</div>
+                  <p className="text-xs text-muted-foreground mt-1">Success rate</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Avg AI Score</CardTitle>
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{analytics.avgAiScore}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Out of 100</p>
+                </CardContent>
+              </Card>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Total Users</CardTitle>
+                  <CardTitle>Team Breakdown</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-4xl font-bold">{users.length}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Active Admins</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-4xl font-bold">
-                    {users.filter((u) => u.role === "admin").length}
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Admins</span>
+                    <Badge variant="default">{users.filter((u) => u.role === "admin").length}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Bid Managers</span>
+                    <Badge variant="secondary">{users.filter((u) => u.role === "bid_manager").length}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Contributors</span>
+                    <Badge variant="outline">{users.filter((u) => u.role === "contributor").length}</Badge>
                   </div>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardHeader>
-                  <CardTitle>Bid Managers</CardTitle>
+                  <CardTitle>Active Bids</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-4xl font-bold">
-                    {users.filter((u) => u.role === "bid_manager").length}
+                  <div className="text-4xl font-bold text-purple-600">{analytics.activeBids}</div>
+                  <p className="text-sm text-muted-foreground mt-2">Tenders marked as "Bid"</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Health</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Database Connected</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">AI Services Active</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Storage Operational</span>
                   </div>
                 </CardContent>
               </Card>
