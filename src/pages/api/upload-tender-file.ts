@@ -63,6 +63,7 @@ export default async function handler(
       .insert({
         tender_id: tenderId,
         file_name: fileName,
+        file_path: storagePath,
         file_type: fileType,
         file_url: urlData.publicUrl,
       })

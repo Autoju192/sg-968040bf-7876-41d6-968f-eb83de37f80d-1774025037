@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
+import { FileUploader } from "@/components/FileUploader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import {
@@ -461,16 +462,28 @@ export default function TenderDetailPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="documents">
-            <Card className="shadow-medium">
+          <TabsContent value="documents" className="mt-6 space-y-6">
+            <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Generated Documents</CardTitle>
-                  <Button>
-                    <FileText className="w-4 h-4 mr-2" />
-                    Generate Document
-                  </Button>
-                </div>
+                <CardTitle>Upload Tender Documents</CardTitle>
+                <CardDescription>
+                  Upload PDFs, Word documents, or Excel spreadsheets for this tender. Our AI will automatically parse them.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <FileUploader 
+                  tenderId={tender.id} 
+                  onUploadComplete={() => {
+                    // Refresh tender data to show new files
+                    fetchTender();
+                  }} 
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Generated Documents</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground text-center py-8">

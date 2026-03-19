@@ -53,7 +53,7 @@ Service Type: ${tender?.service_type || "Unknown"}
 ${tender?.tender_scores?.[0] ? `
 AI ANALYSIS:
 - Overall Score: ${tender.tender_scores[0].total_score}/100
-- Decision: ${tender.tender_scores[0].decision}
+- Decision: ${(tender.tender_scores[0] as any).decision || 'Unknown'}
 - Service Fit: ${tender.tender_scores[0].service_fit}/100
 - Geography Fit: ${tender.tender_scores[0].geography_fit}/100
 - Compliance Fit: ${tender.tender_scores[0].compliance_fit}/100
