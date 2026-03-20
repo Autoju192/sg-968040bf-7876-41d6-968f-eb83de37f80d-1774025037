@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 
-export default function Home() {
+export default function IndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/login");
+    router.push("/landing");
   }, [router]);
 
   return null;
