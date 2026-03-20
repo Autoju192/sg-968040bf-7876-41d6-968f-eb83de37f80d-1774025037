@@ -31,10 +31,43 @@ import {
   ChevronRight,
   Download,
   Plus,
+  CheckCircle2,
+  Circle,
+  Clock,
+  MessageSquare,
+  Trash2,
+  User,
+  AlertCircle,
+  FileText,
+  Edit,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Tender, TenderScore } from "@/services/tenderService";
 import { evaluationService, type TenderEvaluation } from "@/services/evaluationService";
+import { taskService, type Task } from "@/services/taskService";
+import { commentService, type Comment } from "@/services/commentService";
+import { activityService, type Activity } from "@/services/activityService";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 
 interface Message {
   id: string;
@@ -66,6 +99,19 @@ export default function TenderDetailPage() {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [showUploader, setShowUploader] = useState(false);
 
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [newTask, setNewTask] = useState({
+    title: "",
+    description: "",
+    assignedTo: "",
+    priority: "medium" as Task["priority"],
+    dueDate: "",
+  });
+  const [newComment, setNewComment] = useState("");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,6 +123,14 @@ export default function TenderDetailPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (tender && organisation && user) {
+      fetchTasks();
+      fetchComments();
+      fetchActivities();
+    }
+  }, [tender, organisation, user]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -241,6 +295,160 @@ export default function TenderDetailPage() {
     { label: "Missing evidence", prompt: "What evidence might we be missing for this bid?" },
   ];
 
+  const fetchTasks = async () => {
+    try {
+      const tasksData = await taskService.getForTender(tender.id);
+      setTasks(tasksData);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  };
+
+  const fetchComments = async () => {
+    try {
+      const commentsData = await commentService.getForTender(tender.id);
+      setComments(commentsData);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+    }
+  };
+
+  const fetchActivities = async () => {
+    try {
+      const activitiesData = await activityService.getForTender(tender.id);
+      setActivities(activitiesData);
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+    }
+  };
+
+  const handleCreateTask = async () => {
+    if (!newTask.title.trim() || !organisation || !user) return;
+
+    try {
+      await taskService.create(
+        {
+          tenderId: tender.id,
+          title: newTask.title,
+          description: newTask.description,
+          assignedTo: newTask.assignedTo || undefined,
+          priority: newTask.priority,
+          dueDate: newTask.dueDate || undefined,
+        },
+        organisation.id,
+        user.id
+      );
+
+      await activityService.create(
+        {
+          tenderId: tender.id,
+          actionType: "task_created",
+          entityType: "task",
+          description: `Created task: ${newTask.title}`,
+        },
+        organisation.id,
+        user.id
+      );
+
+      setNewTask({
+        title: "",
+        description: "",
+        assignedTo: "",
+        priority: "medium",
+        dueDate: "",
+      });
+      setIsTaskDialogOpen(false);
+      fetchTasks();
+      fetchActivities();
+    } catch (error) {
+      console.error("Error creating task:", error);
+      alert("Failed to create task");
+    }
+  };
+
+  const handleToggleTaskStatus = async (task: Task) => {
+    try {
+      const newStatus = task.status === "completed" ? "pending" : "completed";
+      await taskService.updateStatus(task.id, newStatus);
+
+      if (user && organisation) {
+        await activityService.create(
+          {
+            tenderId: tender.id,
+            actionType: "task_updated",
+            entityType: "task",
+            entityId: task.id,
+            description: `Marked task as ${newStatus}: ${task.title}`,
+          },
+          organisation.id,
+          user.id
+        );
+      }
+
+      fetchTasks();
+      fetchActivities();
+    } catch (error) {
+      console.error("Error updating task:", error);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm("Delete this task?")) return;
+
+    try {
+      await taskService.delete(taskId);
+      fetchTasks();
+      fetchActivities();
+    } catch (error) {
+      console.error("Error deleting task:", error);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !organisation || !user) return;
+
+    try {
+      await commentService.create(
+        {
+          tenderId: tender.id,
+          content: newComment,
+        },
+        organisation.id,
+        user.id
+      );
+
+      await activityService.create(
+        {
+          tenderId: tender.id,
+          actionType: "comment_added",
+          entityType: "comment",
+          description: "Added a comment",
+        },
+        organisation.id,
+        user.id
+      );
+
+      setNewComment("");
+      fetchComments();
+      fetchActivities();
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      alert("Failed to add comment");
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm("Delete this comment?")) return;
+
+    try {
+      await commentService.delete(commentId);
+      fetchComments();
+      fetchActivities();
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+    }
+  };
+
   if (loading || !tender) {
     return (
       <Layout>
@@ -262,12 +470,15 @@ export default function TenderDetailPage() {
 
   return (
     <Layout>
-      <SEO title={`${tender.title} - TenderFlow AI`} description={`Tender details for ${tender.title}`} />
+      <SEO
+        title={`${tender?.title || "Tender Details"} - TenderFlow AI`}
+        description={tender?.description || "View tender details and AI analysis"}
+      />
 
       <div className="h-[calc(100vh-4rem)] flex">
         {/* LEFT SIDE - Tender Details */}
-        <div className="w-1/2 border-r border-border overflow-y-auto">
-          <div className="p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto border-r">
+          <div className="p-8">
             {/* Header */}
             <div>
               <div className="flex items-start justify-between mb-4">
@@ -464,6 +675,368 @@ export default function TenderDetailPage() {
                 </p>
               )}
             </div>
+
+            <Separator />
+
+            {/* Tabs for different sections */}
+            <Tabs defaultValue="overview" className="mt-8">
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="tasks" className="gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Tasks ({tasks.length})
+                </TabsTrigger>
+                <TabsTrigger value="comments" className="gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Comments ({comments.length})
+                </TabsTrigger>
+                <TabsTrigger value="activity" className="gap-2">
+                  <Clock className="h-4 w-4" />
+                  Activity
+                </TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+              </TabsList>
+
+              {/* Overview Tab */}
+              <TabsContent value="overview" className="space-y-6 mt-6">
+                {/* Existing score, description sections */}
+                ... existing overview content ...
+              </TabsContent>
+
+              {/* Tasks Tab */}
+              <TabsContent value="tasks" className="mt-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold">Tasks</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Track work items for this tender
+                    </p>
+                  </div>
+                  <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Task
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create New Task</DialogTitle>
+                        <DialogDescription>
+                          Add a task for this tender
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 mt-4">
+                        <div>
+                          <Label htmlFor="task-title">Title *</Label>
+                          <Input
+                            id="task-title"
+                            placeholder="e.g., Review safeguarding requirements"
+                            value={newTask.title}
+                            onChange={(e) =>
+                              setNewTask({ ...newTask, title: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="task-description">Description</Label>
+                          <Textarea
+                            id="task-description"
+                            placeholder="Add details..."
+                            value={newTask.description}
+                            onChange={(e) =>
+                              setNewTask({ ...newTask, description: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="task-priority">Priority</Label>
+                            <Select
+                              value={newTask.priority}
+                              onValueChange={(value) =>
+                                setNewTask({
+                                  ...newTask,
+                                  priority: value as Task["priority"],
+                                })
+                              }
+                            >
+                              <SelectTrigger id="task-priority">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="urgent">Urgent</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="task-due">Due Date</Label>
+                            <Input
+                              id="task-due"
+                              type="date"
+                              value={newTask.dueDate}
+                              onChange={(e) =>
+                                setNewTask({ ...newTask, dueDate: e.target.value })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-4">
+                          <Button
+                            variant="outline"
+                            onClick={() => setIsTaskDialogOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button onClick={handleCreateTask}>Create Task</Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {tasks.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                      <p className="text-muted-foreground font-medium">No tasks yet</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Create tasks to track work for this tender
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {tasks.map((task) => (
+                      <Card key={task.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <button
+                              onClick={() => handleToggleTaskStatus(task)}
+                              className="mt-1"
+                            >
+                              {task.status === "completed" ? (
+                                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                              ) : (
+                                <Circle className="h-5 w-5 text-muted-foreground" />
+                              )}
+                            </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <h4
+                                  className={`font-medium ${
+                                    task.status === "completed"
+                                      ? "line-through text-muted-foreground"
+                                      : ""
+                                  }`}
+                                >
+                                  {task.title}
+                                </h4>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  onClick={() => handleDeleteTask(task.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {task.description && (
+                                <p className="text-sm text-muted-foreground mt-2">
+                                  {task.description}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-2 mt-3">
+                                {task.priority && (
+                                  <Badge
+                                    variant={
+                                      task.priority === "urgent" ||
+                                      task.priority === "high"
+                                        ? "destructive"
+                                        : "secondary"
+                                    }
+                                  >
+                                    {task.priority}
+                                  </Badge>
+                                )}
+                                {task.due_date && (
+                                  <Badge variant="outline" className="gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {new Date(task.due_date).toLocaleDateString()}
+                                  </Badge>
+                                )}
+                                <Badge variant="outline">{task.status}</Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Comments Tab */}
+              <TabsContent value="comments" className="mt-6">
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-2">Discussion</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Collaborate with your team on this tender
+                  </p>
+                </div>
+
+                {comments.length === 0 ? (
+                  <Card className="mb-6">
+                    <CardContent className="text-center py-12">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                      <p className="text-muted-foreground font-medium">
+                        No comments yet
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Start a discussion about this tender
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4 mb-6">
+                    {comments.map((comment) => (
+                      <Card key={comment.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <User className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="font-medium text-sm">
+                                    {comment.users?.full_name || "User"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(comment.created_at).toLocaleString()}
+                                  </p>
+                                </div>
+                                {user?.id === comment.user_id && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive"
+                                    onClick={() => handleDeleteComment(comment.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              <p className="text-sm mt-2 whitespace-pre-wrap">
+                                {comment.content}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add Comment */}
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <Textarea
+                          placeholder="Add a comment..."
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          className="min-h-[80px]"
+                        />
+                        <div className="flex justify-end mt-3">
+                          <Button
+                            onClick={handleAddComment}
+                            disabled={!newComment.trim()}
+                          >
+                            <Send className="mr-2 h-4 w-4" />
+                            Post Comment
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Activity Tab */}
+              <TabsContent value="activity" className="mt-6">
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-2">Activity Timeline</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Track all changes and updates to this tender
+                  </p>
+                </div>
+
+                {activities.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <Clock className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                      <p className="text-muted-foreground font-medium">
+                        No activity yet
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {activities.map((activity, index) => (
+                      <div key={activity.id} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            {activity.action_type === "task_created" ||
+                            activity.action_type === "task_updated" ? (
+                              <CheckCircle2 className="h-4 w-4 text-primary" />
+                            ) : activity.action_type === "comment_added" ? (
+                              <MessageSquare className="h-4 w-4 text-primary" />
+                            ) : activity.action_type === "file_uploaded" ? (
+                              <FileText className="h-4 w-4 text-primary" />
+                            ) : activity.action_type === "status_changed" ? (
+                              <Edit className="h-4 w-4 text-primary" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-primary" />
+                            )}
+                          </div>
+                          {index < activities.length - 1 && (
+                            <div className="w-px h-full bg-border mt-2" />
+                          )}
+                        </div>
+                        <div className="flex-1 pb-6">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {activity.users?.full_name || "System"}
+                              </p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {activity.description}
+                              </p>
+                            </div>
+                            <p className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(activity.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Documents Tab */}
+              <TabsContent value="documents" className="mt-6">
+                ... existing documents content ...
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 

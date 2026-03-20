@@ -15,6 +15,132 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action_type: string
+          created_at: string | null
+          description: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          metadata: Json | null
+          organisation_id: string
+          tender_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string | null
+          description: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          metadata?: Json | null
+          organisation_id: string
+          tender_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string | null
+          description?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          metadata?: Json | null
+          organisation_id?: string
+          tender_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_log_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_log_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          mentions: Json | null
+          organisation_id: string
+          task_id: string | null
+          tender_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          mentions?: Json | null
+          organisation_id: string
+          task_id?: string | null
+          tender_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          mentions?: Json | null
+          organisation_id?: string
+          task_id?: string | null
+          tender_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           content: string
@@ -156,30 +282,70 @@ export type Database = {
       }
       historical_bids: {
         Row: {
+          authority: string | null
           content: string | null
           created_at: string | null
+          created_by: string | null
+          feedback: string | null
+          files: Json | null
           id: string
+          lessons_learned: string | null
+          metadata: Json | null
           organisation_id: string
           outcome: string | null
+          score: number | null
+          submission_date: string | null
           tender_id: string | null
+          tender_title: string | null
+          updated_at: string | null
+          value: number | null
         }
         Insert: {
+          authority?: string | null
           content?: string | null
           created_at?: string | null
+          created_by?: string | null
+          feedback?: string | null
+          files?: Json | null
           id?: string
+          lessons_learned?: string | null
+          metadata?: Json | null
           organisation_id: string
           outcome?: string | null
+          score?: number | null
+          submission_date?: string | null
           tender_id?: string | null
+          tender_title?: string | null
+          updated_at?: string | null
+          value?: number | null
         }
         Update: {
+          authority?: string | null
           content?: string | null
           created_at?: string | null
+          created_by?: string | null
+          feedback?: string | null
+          files?: Json | null
           id?: string
+          lessons_learned?: string | null
+          metadata?: Json | null
           organisation_id?: string
           outcome?: string | null
+          score?: number | null
+          submission_date?: string | null
           tender_id?: string | null
+          tender_title?: string | null
+          updated_at?: string | null
+          value?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "historical_bids_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "historical_bids_organisation_id_fkey"
             columns: ["organisation_id"]

@@ -1,386 +1,499 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
+import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
-import { useRouter } from "next/router";
-import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Download, FileText, TrendingUp, Award, Target, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabase";
+import {
+  BarChart3,
+  TrendingUp,
+  Award,
+  Target,
+  Calendar,
+  DollarSign,
+  Download,
+  Filter,
+} from "lucide-react";
+import { DashboardCharts } from "@/components/DashboardCharts";
 
-interface ReportData {
-  totalTenders: number;
-  bidTenders: number;
-  noBidTenders: number;
-  submittedBids: number;
+interface HistoricalBid {
+  id: string;
+  tender_title: string;
+  authority: string | null;
+  submission_date: string | null;
+  outcome: "won" | "lost" | "pending" | "withdrawn" | null;
+  value: number | null;
+  score: number | null;
+  feedback: string | null;
+  lessons_learned: string | null;
+  created_at: string;
+}
+
+interface Analytics {
+  totalBids: number;
   wonBids: number;
   lostBids: number;
+  pendingBids: number;
   winRate: number;
-  avgScore: number;
+  totalValue: number;
+  wonValue: number;
+  averageScore: number;
 }
 
 export default function ReportsPage() {
-  const { user, organisation } = useAuth();
-  const router = useRouter();
+  const { organisation } = useAuth();
+  const [historicalBids, setHistoricalBids] = useState<HistoricalBid[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics>({
+    totalBids: 0,
+    wonBids: 0,
+    lostBids: 0,
+    pendingBids: 0,
+    winRate: 0,
+    totalValue: 0,
+    wonValue: 0,
+    averageScore: 0,
+  });
   const [loading, setLoading] = useState(true);
-  const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [dateRange, setDateRange] = useState("30");
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
-    if (!user) {
-      router.push("/login");
-      return;
+    if (organisation) {
+      fetchHistoricalBids();
     }
+  }, [organisation]);
 
-    loadReportData();
-  }, [user, router, dateRange]);
-
-  const loadReportData = async () => {
-    if (!organisation?.id) return;
-
-    setLoading(true);
-
+  const fetchHistoricalBids = async () => {
     try {
-      const daysAgo = new Date();
-      daysAgo.setDate(daysAgo.getDate() - parseInt(dateRange));
-
-      // Get tenders
-      const { data: tenders, error: tendersError } = await supabase
-        .from("tenders")
-        .select("*")
-        .eq("organisation_id", organisation.id)
-        .gte("created_at", daysAgo.toISOString());
-
-      if (tendersError) throw tendersError;
-
-      // Get historical bids
-      const { data: bids, error: bidsError } = await supabase
+      const { data, error } = await supabase
         .from("historical_bids")
         .select("*")
-        .eq("organisation_id", organisation.id);
+        .eq("organisation_id", organisation?.id)
+        .order("submission_date", { ascending: false, nullsFirst: false });
 
-      if (bidsError) throw bidsError;
+      if (error) throw error;
 
-      // Get tender scores
-      const { data: scores, error: scoresError } = await supabase
-        .from("tender_scores")
-        .select("*");
-
-      if (scoresError) throw scoresError;
-
-      // Calculate metrics
-      const totalTenders = tenders?.length || 0;
-      const bidTenders = tenders?.filter((t) => t.status === "bid").length || 0;
-      const noBidTenders = tenders?.filter((t) => t.status === "no_bid").length || 0;
-      const submittedBids = tenders?.filter((t) => t.status === "submitted").length || 0;
-      const wonBids = bids?.filter((b) => b.outcome === "won").length || 0;
-      const lostBids = bids?.filter((b) => b.outcome === "lost").length || 0;
-      const winRate = wonBids + lostBids > 0 ? (wonBids / (wonBids + lostBids)) * 100 : 0;
-      const avgScore = scores && scores.length > 0
-        ? scores.reduce((sum, s) => sum + (s.total_score || 0), 0) / scores.length
-        : 0;
-
-      setReportData({
-        totalTenders,
-        bidTenders,
-        noBidTenders,
-        submittedBids,
-        wonBids,
-        lostBids,
-        winRate,
-        avgScore,
-      });
+      const bids = (data as HistoricalBid[]) || [];
+      setHistoricalBids(bids);
+      calculateAnalytics(bids);
     } catch (error) {
-      console.error("Error loading report data:", error);
+      console.error("Error fetching historical bids:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const exportReport = () => {
-    if (!reportData) return;
+  const calculateAnalytics = (bids: HistoricalBid[]) => {
+    const totalBids = bids.length;
+    const wonBids = bids.filter((b) => b.outcome === "won").length;
+    const lostBids = bids.filter((b) => b.outcome === "lost").length;
+    const pendingBids = bids.filter((b) => b.outcome === "pending").length;
+    const winRate = totalBids > 0 ? (wonBids / (wonBids + lostBids)) * 100 : 0;
 
-    const csvContent = `TenderFlow AI - Performance Report
-Date Range: Last ${dateRange} days
-Generated: ${new Date().toLocaleDateString()}
+    const totalValue = bids.reduce((sum, b) => sum + (b.value || 0), 0);
+    const wonValue = bids
+      .filter((b) => b.outcome === "won")
+      .reduce((sum, b) => sum + (b.value || 0), 0);
 
-SUMMARY METRICS
-Total Tenders,${reportData.totalTenders}
-Bid Decisions,${reportData.bidTenders}
-No Bid Decisions,${reportData.noBidTenders}
-Submitted Bids,${reportData.submittedBids}
-Won Bids,${reportData.wonBids}
-Lost Bids,${reportData.lostBids}
-Win Rate,${reportData.winRate.toFixed(1)}%
-Average AI Score,${reportData.avgScore.toFixed(1)}`;
+    const scoresArray = bids.filter((b) => b.score !== null).map((b) => b.score as number);
+    const averageScore =
+      scoresArray.length > 0
+        ? scoresArray.reduce((sum, s) => sum + s, 0) / scoresArray.length
+        : 0;
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `tenderflow-report-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
+    setAnalytics({
+      totalBids,
+      wonBids,
+      lostBids,
+      pendingBids,
+      winRate,
+      totalValue,
+      wonValue,
+      averageScore,
+    });
   };
 
-  const decisionData = reportData
-    ? [
-        { name: "Bid", value: reportData.bidTenders, color: "#22c55e" },
-        { name: "No Bid", value: reportData.noBidTenders, color: "#ef4444" },
-        { name: "Review", value: reportData.totalTenders - reportData.bidTenders - reportData.noBidTenders, color: "#f59e0b" },
-      ]
-    : [];
+  const getOutcomeBadge = (outcome: string | null) => {
+    if (!outcome) return <Badge variant="outline">Unknown</Badge>;
 
-  const outcomeData = reportData
-    ? [
-        { name: "Won", value: reportData.wonBids },
-        { name: "Lost", value: reportData.lostBids },
-      ]
-    : [];
+    const config: Record<string, { variant: any; label: string }> = {
+      won: { variant: "default", label: "Won" },
+      lost: { variant: "destructive", label: "Lost" },
+      pending: { variant: "secondary", label: "Pending" },
+      withdrawn: { variant: "outline", label: "Withdrawn" },
+    };
 
-  if (!user) {
-    return null;
-  }
+    const { variant, label } = config[outcome] || { variant: "outline", label: outcome };
+    return <Badge variant={variant}>{label}</Badge>;
+  };
 
   return (
     <Layout>
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
-        <div className="flex justify-between items-center mb-8">
+      <SEO
+        title="Reports & Analytics - TenderFlow AI"
+        description="Analyze bid performance and track win rates"
+      />
+
+      <div className="p-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Performance Reports</h1>
+            <h1 className="text-3xl font-heading font-bold mb-2">Reports & Analytics</h1>
             <p className="text-muted-foreground">
-              Track bid success rates, tender pipeline, and team performance
+              Track performance, analyze trends, and improve win rates
             </p>
           </div>
-          <div className="flex gap-4">
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="w-40">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">Last 7 days</SelectItem>
-                <SelectItem value="30">Last 30 days</SelectItem>
-                <SelectItem value="90">Last 90 days</SelectItem>
-                <SelectItem value="365">Last year</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={exportReport}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
+          <div className="flex gap-3">
+            <Button variant="outline">
+              <Filter className="mr-2 h-4 w-4" />
+              Filter
+            </Button>
+            <Button>
+              <Download className="mr-2 h-4 w-4" />
+              Export Report
             </Button>
           </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-12">Loading report data...</div>
-        ) : !reportData ? (
-          <div className="text-center py-12 text-muted-foreground">
-            No data available for the selected period
-          </div>
-        ) : (
-          <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="overview">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="pipeline">
-                <Target className="h-4 w-4 mr-2" />
-                Pipeline
-              </TabsTrigger>
-              <TabsTrigger value="performance">
-                <Award className="h-4 w-4 mr-2" />
-                Performance
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Total Tenders
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{reportData.totalTenders}</div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Win Rate
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-green-600">
-                      {reportData.winRate.toFixed(1)}%
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Avg AI Score
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-purple-600">
-                      {reportData.avgScore.toFixed(1)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Submitted
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{reportData.submittedBids}</div>
-                  </CardContent>
-                </Card>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Win Rate
+                </CardTitle>
+                <Award className="h-4 w-4 text-muted-foreground" />
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Bid Decisions</CardTitle>
-                    <CardDescription>Distribution of bid/no-bid decisions</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={decisionData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={100}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {decisionData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Bid Outcomes</CardTitle>
-                    <CardDescription>Won vs lost bids</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={outcomeData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="value" fill="#8b5cf6" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {analytics.winRate.toFixed(1)}%
               </div>
-            </TabsContent>
+              <p className="text-xs text-muted-foreground mt-1">
+                {analytics.wonBids} won of {analytics.wonBids + analytics.lostBids} decided
+              </p>
+            </CardContent>
+          </Card>
 
-            <TabsContent value="pipeline" className="space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Bids
+                </CardTitle>
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{analytics.totalBids}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {analytics.pendingBids} pending
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Value Won
+                </CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                £{(analytics.wonValue / 1000).toFixed(0)}k
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                of £{(analytics.totalValue / 1000).toFixed(0)}k total
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Avg Score
+                </CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {analytics.averageScore.toFixed(0)}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Across all submissions
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="history">Bid History</TabsTrigger>
+            <TabsTrigger value="insights">Insights</TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Tender Pipeline Status</CardTitle>
-                  <CardDescription>Current status of all tenders</CardDescription>
+                  <CardTitle>Performance Trends</CardTitle>
+                  <CardDescription>Win rate and bid volume over time</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DashboardCharts />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Outcomes</CardTitle>
+                  <CardDescription>Latest bid results</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">New Tenders</span>
-                      <span className="text-2xl font-bold">{reportData.totalTenders - reportData.bidTenders - reportData.noBidTenders}</span>
+                    {historicalBids.slice(0, 5).map((bid) => (
+                      <div key={bid.id} className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{bid.tender_title}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {bid.authority}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 ml-4">
+                          {bid.value && (
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">
+                              £{(bid.value / 1000).toFixed(0)}k
+                            </span>
+                          )}
+                          {getOutcomeBadge(bid.outcome)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Bid History Tab */}
+          <TabsContent value="history" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Historical Bids</CardTitle>
+                <CardDescription>
+                  Complete record of all submitted bids
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">Loading historical bids...</p>
+                  </div>
+                ) : historicalBids.length === 0 ? (
+                  <div className="text-center py-12">
+                    <BarChart3 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                    <p className="text-muted-foreground font-medium">
+                      No historical bids yet
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Upload past bids to track performance
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {historicalBids.map((bid) => (
+                      <div
+                        key={bid.id}
+                        className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h3 className="font-medium mb-1">{bid.tender_title}</h3>
+                            {bid.authority && (
+                              <p className="text-sm text-muted-foreground mb-2">
+                                {bid.authority}
+                              </p>
+                            )}
+                          </div>
+                          {getOutcomeBadge(bid.outcome)}
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+                          {bid.submission_date && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">
+                                Submitted
+                              </p>
+                              <p className="text-sm font-medium">
+                                {new Date(bid.submission_date).toLocaleDateString()}
+                              </p>
+                            </div>
+                          )}
+                          {bid.value && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">
+                                Value
+                              </p>
+                              <p className="text-sm font-medium">
+                                £{(bid.value / 1000).toFixed(0)}k
+                              </p>
+                            </div>
+                          )}
+                          {bid.score && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">
+                                Score
+                              </p>
+                              <p className="text-sm font-medium">{bid.score}%</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {(bid.feedback || bid.lessons_learned) && (
+                          <div className="mt-3 pt-3 border-t">
+                            {bid.feedback && (
+                              <div className="mb-2">
+                                <p className="text-xs text-muted-foreground mb-1">
+                                  Feedback
+                                </p>
+                                <p className="text-sm">{bid.feedback}</p>
+                              </div>
+                            )}
+                            {bid.lessons_learned && (
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">
+                                  Lessons Learned
+                                </p>
+                                <p className="text-sm">{bid.lessons_learned}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Insights Tab */}
+          <TabsContent value="insights" className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Success Factors</CardTitle>
+                  <CardDescription>
+                    What contributes to winning bids
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">High AI Match Score</span>
+                        <span className="text-sm text-muted-foreground">85%+</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500"
+                          style={{ width: "85%" }}
+                        />
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Marked as Bid</span>
-                      <span className="text-2xl font-bold text-green-600">{reportData.bidTenders}</span>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Strong Evidence Library</span>
+                        <span className="text-sm text-muted-foreground">78%</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-green-500"
+                          style={{ width: "78%" }}
+                        />
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Marked as No Bid</span>
-                      <span className="text-2xl font-bold text-red-600">{reportData.noBidTenders}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Submitted</span>
-                      <span className="text-2xl font-bold text-blue-600">{reportData.submittedBids}</span>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Geography Match</span>
+                        <span className="text-sm text-muted-foreground">72%</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-yellow-500"
+                          style={{ width: "72%" }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            <TabsContent value="performance" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Success Metrics</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span>Win Rate</span>
-                        <span className="font-bold">{reportData.winRate.toFixed(1)}%</span>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recommendations</CardTitle>
+                  <CardDescription>
+                    AI-powered suggestions to improve win rate
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <TrendingUp className="h-4 w-4 text-green-600" />
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-green-600 h-2 rounded-full"
-                          style={{ width: `${reportData.winRate}%` }}
-                        />
+                      <div>
+                        <p className="font-medium text-sm">
+                          Focus on tenders with 80%+ AI match score
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Your win rate is 12% higher on high-scoring opportunities
+                        </p>
                       </div>
                     </div>
-
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span>Average AI Score</span>
-                        <span className="font-bold">{reportData.avgScore.toFixed(1)}</span>
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <Calendar className="h-4 w-4 text-blue-600" />
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-purple-600 h-2 rounded-full"
-                          style={{ width: `${reportData.avgScore}%` }}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Historical Performance</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                        <span className="font-medium text-green-700">Won Bids</span>
-                        <span className="text-2xl font-bold text-green-700">{reportData.wonBids}</span>
-                      </div>
-                      <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                        <span className="font-medium text-red-700">Lost Bids</span>
-                        <span className="text-2xl font-bold text-red-700">{reportData.lostBids}</span>
+                      <div>
+                        <p className="font-medium text-sm">
+                          Start earlier on complex bids
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Bids with 4+ weeks preparation time have 18% higher success rate
+                        </p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
-        )}
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                        <Award className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">
+                          Expand evidence library for safeguarding
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          This category shows the largest gap in your submissions
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );
