@@ -1,91 +1,122 @@
 import { supabase } from "@/lib/supabase";
 
-export type NotificationType = "deadline" | "tender" | "task" | "update" | "system";
-
-export interface CreateNotificationData {
-  user_id?: string;
-  organisation_id?: string;
-  type: NotificationType;
+export interface CreateNotificationParams {
+  organisationId: string;
+  userId?: string | null;
+  type: 'new_tender' | 'tender_update' | 'deadline' | 'message' | 'task_assigned' | 'comment' | 'system';
   title: string;
-  message: string;
-  tender_id?: string;
-  task_id?: string;
+  message?: string;
+  link?: string;
 }
 
-export async function createNotification(data: CreateNotificationData) {
-  const { error } = await supabase.from("notifications").insert({
-    ...data,
-    read: false,
-  });
+export const notificationService = {
+  /**
+   * Create a new notification
+   */
+  async create(params: CreateNotificationParams) {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        organisation_id: params.organisationId,
+        user_id: params.userId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        link: params.link,
+      })
+      .select()
+      .single();
 
-  if (error) throw error;
-}
+    if (error) {
+      console.error('Error creating notification:', error);
+      throw error;
+    }
 
-export async function createDeadlineNotification(
-  tenderId: string,
-  tenderTitle: string,
-  deadline: Date,
-  organisationId: string
-) {
-  const daysUntil = Math.ceil(
-    (deadline.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-  );
+    return data;
+  },
 
-  await createNotification({
-    organisation_id: organisationId,
-    type: "deadline",
-    title: "Deadline Approaching",
-    message: `${tenderTitle} deadline is in ${daysUntil} days`,
-    tender_id: tenderId,
-  });
-}
+  /**
+   * Get notifications for a user
+   */
+  async getForUser(userId: string, organisationId: string, limit = 50) {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .or(`user_id.eq.${userId},user_id.is.null`)
+      .eq('organisation_id', organisationId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-export async function createTenderUpdateNotification(
-  tenderId: string,
-  tenderTitle: string,
-  updateMessage: string,
-  organisationId: string
-) {
-  await createNotification({
-    organisation_id: organisationId,
-    type: "update",
-    title: "Tender Update",
-    message: `${tenderTitle}: ${updateMessage}`,
-    tender_id: tenderId,
-  });
-}
+    if (error) {
+      console.error('Error fetching notifications:', error);
+      throw error;
+    }
 
-export async function createTaskAssignedNotification(
-  userId: string,
-  taskDescription: string,
-  tenderId: string,
-  taskId: string
-) {
-  await createNotification({
-    user_id: userId,
-    type: "task",
-    title: "New Task Assigned",
-    message: taskDescription,
-    tender_id: tenderId,
-    task_id: taskId,
-  });
-}
+    return data;
+  },
 
-export async function markNotificationAsRead(notificationId: string) {
-  const { error } = await supabase
-    .from("notifications")
-    .update({ read: true })
-    .eq("id", notificationId);
+  /**
+   * Mark notification as read
+   */
+  async markAsRead(notificationId: string) {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', notificationId);
 
-  if (error) throw error;
-}
+    if (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
+  },
 
-export async function markAllNotificationsAsRead(userId: string) {
-  const { error } = await supabase
-    .from("notifications")
-    .update({ read: true })
-    .eq("user_id", userId)
-    .eq("read", false);
+  /**
+   * Mark all notifications as read for a user
+   */
+  async markAllAsRead(userId: string) {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('read', false);
 
-  if (error) throw error;
-}
+    if (error) {
+      console.error('Error marking all as read:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a notification
+   */
+  async delete(notificationId: string) {
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', notificationId);
+
+    if (error) {
+      console.error('Error deleting notification:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get unread count for a user
+   */
+  async getUnreadCount(userId: string, organisationId: string) {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .or(`user_id.eq.${userId},user_id.is.null`)
+      .eq('organisation_id', organisationId)
+      .eq('read', false);
+
+    if (error) {
+      console.error('Error getting unread count:', error);
+      throw error;
+    }
+
+    return count || 0;
+  },
+};

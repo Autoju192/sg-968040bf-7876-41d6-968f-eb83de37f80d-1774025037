@@ -389,6 +389,66 @@ export type Database = {
         }
         Relationships: []
       }
+      portal_connections: {
+        Row: {
+          config: Json
+          connection_type: string
+          created_at: string | null
+          created_by: string | null
+          credentials_encrypted: string | null
+          id: string
+          last_error: string | null
+          last_sync: string | null
+          name: string
+          organisation_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json
+          connection_type: string
+          created_at?: string | null
+          created_by?: string | null
+          credentials_encrypted?: string | null
+          id?: string
+          last_error?: string | null
+          last_sync?: string | null
+          name: string
+          organisation_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json
+          connection_type?: string
+          created_at?: string | null
+          created_by?: string | null
+          credentials_encrypted?: string | null
+          id?: string
+          last_error?: string | null
+          last_sync?: string | null
+          name?: string
+          organisation_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_connections_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_connections_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assigned_to: string | null
@@ -484,6 +544,85 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tender_files_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_inbox: {
+        Row: {
+          action_required: boolean | null
+          assigned_to: string | null
+          content: string | null
+          created_at: string | null
+          deadline: string | null
+          id: string
+          is_read: boolean | null
+          metadata: Json | null
+          organisation_id: string
+          priority: string | null
+          source: string
+          subject: string
+          summary: string | null
+          tender_id: string | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          action_required?: boolean | null
+          assigned_to?: string | null
+          content?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          id?: string
+          is_read?: boolean | null
+          metadata?: Json | null
+          organisation_id: string
+          priority?: string | null
+          source: string
+          subject: string
+          summary?: string | null
+          tender_id?: string | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          action_required?: boolean | null
+          assigned_to?: string | null
+          content?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          id?: string
+          is_read?: boolean | null
+          metadata?: Json | null
+          organisation_id?: string
+          priority?: string | null
+          source?: string
+          subject?: string
+          summary?: string | null
+          tender_id?: string | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_inbox_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_inbox_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_inbox_tender_id_fkey"
             columns: ["tender_id"]
             isOneToOne: false
             referencedRelation: "tenders"

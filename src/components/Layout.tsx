@@ -12,7 +12,9 @@ import {
   Settings,
   LogOut,
   Zap,
-  Menu
+  Menu,
+  Inbox,
+  FileCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -26,12 +28,12 @@ interface LayoutProps {
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Tenders", href: "/tenders", icon: FileSearch },
+  { name: "Inbox", href: "/inbox", icon: Inbox },
+  { name: "Tenders", href: "/tenders", icon: FileText },
+  { name: "Documents", href: "/documents", icon: FileCheck },
   { name: "Evidence Library", href: "/evidence", icon: Library },
-  { name: "Documents", href: "/documents", icon: FileText },
   { name: "Team", href: "/team", icon: Users },
-  { name: "Reports", href: "/reports", icon: Zap },
-  { name: "Admin", href: "/admin", icon: Settings },
+  { name: "Integrations", href: "/integrations", icon: Settings },
 ];
 
 export function Layout({ children }: LayoutProps) {
