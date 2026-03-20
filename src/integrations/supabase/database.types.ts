@@ -141,6 +141,63 @@ export type Database = {
           },
         ]
       }
+      connection_logs: {
+        Row: {
+          connection_id: string
+          created_at: string | null
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          items_created: number | null
+          items_fetched: number | null
+          items_updated: number | null
+          metadata: Json | null
+          organisation_id: string
+          run_status: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          items_created?: number | null
+          items_fetched?: number | null
+          items_updated?: number | null
+          metadata?: Json | null
+          organisation_id: string
+          run_status: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          items_created?: number | null
+          items_fetched?: number | null
+          items_updated?: number | null
+          metadata?: Json | null
+          organisation_id?: string
+          run_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connection_logs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "portal_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "connection_logs_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           content: string
@@ -557,55 +614,57 @@ export type Database = {
       }
       portal_connections: {
         Row: {
-          config: Json
+          config: Json | null
+          connection_name: string
           connection_type: string
           created_at: string | null
-          created_by: string | null
-          credentials_encrypted: string | null
+          credentials: Json | null
+          error_count: number | null
+          error_message: string | null
           id: string
-          last_error: string | null
-          last_sync: string | null
-          name: string
+          last_sync_at: string | null
+          next_sync_at: string | null
           organisation_id: string
-          status: string | null
+          source_type: string | null
+          status: string
+          sync_frequency: string | null
           updated_at: string | null
         }
         Insert: {
-          config?: Json
+          config?: Json | null
+          connection_name: string
           connection_type: string
           created_at?: string | null
-          created_by?: string | null
-          credentials_encrypted?: string | null
+          credentials?: Json | null
+          error_count?: number | null
+          error_message?: string | null
           id?: string
-          last_error?: string | null
-          last_sync?: string | null
-          name: string
+          last_sync_at?: string | null
+          next_sync_at?: string | null
           organisation_id: string
-          status?: string | null
+          source_type?: string | null
+          status?: string
+          sync_frequency?: string | null
           updated_at?: string | null
         }
         Update: {
-          config?: Json
+          config?: Json | null
+          connection_name?: string
           connection_type?: string
           created_at?: string | null
-          created_by?: string | null
-          credentials_encrypted?: string | null
+          credentials?: Json | null
+          error_count?: number | null
+          error_message?: string | null
           id?: string
-          last_error?: string | null
-          last_sync?: string | null
-          name?: string
+          last_sync_at?: string | null
+          next_sync_at?: string | null
           organisation_id?: string
-          status?: string | null
+          source_type?: string | null
+          status?: string
+          sync_frequency?: string | null
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "portal_connections_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "portal_connections_organisation_id_fkey"
             columns: ["organisation_id"]
@@ -719,56 +778,80 @@ export type Database = {
       }
       tender_inbox: {
         Row: {
+          action_deadline: string | null
           action_required: boolean | null
+          action_text: string | null
+          actioned_at: string | null
           assigned_to: string | null
-          content: string | null
+          connection_id: string | null
           created_at: string | null
-          deadline: string | null
+          external_id: string | null
+          external_link: string | null
           id: string
-          is_read: boolean | null
           metadata: Json | null
           organisation_id: string
           priority: string | null
+          raw_content: string | null
+          read_at: string | null
           source: string
-          subject: string
+          source_type: string | null
+          status: string | null
+          suggested_owner: string | null
           summary: string | null
           tender_id: string | null
+          title: string
           type: string
           updated_at: string | null
         }
         Insert: {
+          action_deadline?: string | null
           action_required?: boolean | null
+          action_text?: string | null
+          actioned_at?: string | null
           assigned_to?: string | null
-          content?: string | null
+          connection_id?: string | null
           created_at?: string | null
-          deadline?: string | null
+          external_id?: string | null
+          external_link?: string | null
           id?: string
-          is_read?: boolean | null
           metadata?: Json | null
           organisation_id: string
           priority?: string | null
+          raw_content?: string | null
+          read_at?: string | null
           source: string
-          subject: string
+          source_type?: string | null
+          status?: string | null
+          suggested_owner?: string | null
           summary?: string | null
           tender_id?: string | null
+          title: string
           type: string
           updated_at?: string | null
         }
         Update: {
+          action_deadline?: string | null
           action_required?: boolean | null
+          action_text?: string | null
+          actioned_at?: string | null
           assigned_to?: string | null
-          content?: string | null
+          connection_id?: string | null
           created_at?: string | null
-          deadline?: string | null
+          external_id?: string | null
+          external_link?: string | null
           id?: string
-          is_read?: boolean | null
           metadata?: Json | null
           organisation_id?: string
           priority?: string | null
+          raw_content?: string | null
+          read_at?: string | null
           source?: string
-          subject?: string
+          source_type?: string | null
+          status?: string | null
+          suggested_owner?: string | null
           summary?: string | null
           tender_id?: string | null
+          title?: string
           type?: string
           updated_at?: string | null
         }
@@ -781,10 +864,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tender_inbox_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "portal_connections"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tender_inbox_organisation_id_fkey"
             columns: ["organisation_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_inbox_suggested_owner_fkey"
+            columns: ["suggested_owner"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -942,12 +1039,16 @@ export type Database = {
           decision: string | null
           dedup_key: string | null
           description: string | null
+          external_id: string | null
+          external_link: string | null
           id: string
           link: string | null
           location: string | null
           organisation_id: string
+          raw_data: Json | null
           service_type: string | null
           source: string | null
+          source_type: string | null
           status: string
           title: string
           updated_at: string | null
@@ -962,12 +1063,16 @@ export type Database = {
           decision?: string | null
           dedup_key?: string | null
           description?: string | null
+          external_id?: string | null
+          external_link?: string | null
           id?: string
           link?: string | null
           location?: string | null
           organisation_id: string
+          raw_data?: Json | null
           service_type?: string | null
           source?: string | null
+          source_type?: string | null
           status?: string
           title: string
           updated_at?: string | null
@@ -982,12 +1087,16 @@ export type Database = {
           decision?: string | null
           dedup_key?: string | null
           description?: string | null
+          external_id?: string | null
+          external_link?: string | null
           id?: string
           link?: string | null
           location?: string | null
           organisation_id?: string
+          raw_data?: Json | null
           service_type?: string | null
           source?: string | null
+          source_type?: string | null
           status?: string
           title?: string
           updated_at?: string | null
