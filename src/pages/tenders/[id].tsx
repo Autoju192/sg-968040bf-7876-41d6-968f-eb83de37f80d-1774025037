@@ -1,39 +1,52 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "@/contexts/AuthContext";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { FileUploader } from "@/components/FileUploader";
-import { DocumentExporter } from "@/components/DocumentExporter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   FileText,
-  MessageSquare,
-  Target,
-  AlertCircle,
+  Send,
+  Sparkles,
+  Upload,
   CheckCircle2,
+  AlertCircle,
   Clock,
   Building2,
   MapPin,
   Calendar,
   DollarSign,
-  Send,
-  Sparkles,
+  Target,
+  TrendingUp,
+  FileUp,
+  Loader2,
+  ChevronRight,
+  Download,
+  Plus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Tender, TenderScore } from "@/services/tenderService";
-import { evaluationService, type TenderEvaluation, type CompanyProfile } from "@/services/evaluationService";
-import { Loader2 } from "lucide-react";
+import { evaluationService, type TenderEvaluation } from "@/services/evaluationService";
 
 interface Message {
   id: string;
   content: string;
   is_ai: boolean;
+  created_at: string;
+}
+
+interface TenderFile {
+  id: string;
+  file_name: string;
+  file_url: string;
   created_at: string;
 }
 
@@ -45,18 +58,29 @@ export default function TenderDetailPage() {
   const [tender, setTender] = useState<Tender | null>(null);
   const [score, setScore] = useState<TenderScore | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [files, setFiles] = useState<TenderFile[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [evaluation, setEvaluation] = useState<TenderEvaluation | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
-  const [evaluationError, setEvaluationError] = useState<string | null>(null);
+  const [showUploader, setShowUploader] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof id === "string") {
       fetchTenderData(id);
     }
   }, [id]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   async function fetchTenderData(tenderId: string) {
     try {
@@ -86,6 +110,14 @@ export default function TenderDetailPage() {
         .order("created_at", { ascending: true });
 
       if (messagesData) setMessages(messagesData as Message[]);
+
+      const { data: filesData } = await supabase
+        .from("tender_files")
+        .select("*")
+        .eq("tender_id", tenderId)
+        .order("created_at", { ascending: false });
+
+      if (filesData) setFiles(filesData as TenderFile[]);
     } catch (error) {
       console.error("Error fetching tender:", error);
     } finally {
@@ -97,13 +129,16 @@ export default function TenderDetailPage() {
     if (!newMessage.trim() || typeof id !== "string") return;
 
     setSending(true);
+    const messageText = newMessage;
+    setNewMessage("");
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       const userMessage = {
         tender_id: id,
         user_id: user?.id,
-        content: newMessage,
+        content: messageText,
         is_ai: false,
       };
 
@@ -116,14 +151,13 @@ export default function TenderDetailPage() {
       if (error) throw error;
 
       setMessages((prev) => [...prev, data as Message]);
-      setNewMessage("");
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tenderId: id,
-          message: newMessage,
+          message: messageText,
         }),
       });
 
@@ -146,6 +180,7 @@ export default function TenderDetailPage() {
       setMessages((prev) => [...prev, aiData as Message]);
     } catch (error) {
       console.error("Error sending message:", error);
+      setNewMessage(messageText);
     } finally {
       setSending(false);
     }
@@ -155,10 +190,8 @@ export default function TenderDetailPage() {
     if (!tender || !user) return;
 
     setIsEvaluating(true);
-    setEvaluationError(null);
 
     try {
-      // First fetch the user's organisation ID
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("organisation_id")
@@ -169,12 +202,10 @@ export default function TenderDetailPage() {
         throw new Error("Could not find your organization profile");
       }
 
-      // Get company profile
       const companyProfile = await evaluationService.getCompanyProfile(
         userData.organisation_id
       );
 
-      // Run evaluation
       const result = await evaluationService.evaluateTender(
         tender.id,
         companyProfile
@@ -182,10 +213,8 @@ export default function TenderDetailPage() {
 
       setEvaluation(result);
 
-      // Save to database
       await evaluationService.saveEvaluation(tender.id, result);
 
-      // Refresh tender data to show updated score
       const { data: updatedTender } = await supabase
         .from("tenders")
         .select(`
@@ -200,19 +229,23 @@ export default function TenderDetailPage() {
       }
     } catch (error) {
       console.error("Evaluation error:", error);
-      setEvaluationError(
-        error instanceof Error ? error.message : "Failed to evaluate tender"
-      );
     } finally {
       setIsEvaluating(false);
     }
   };
 
+  const quickActions = [
+    { label: "Summarize tender", prompt: "Please summarize this tender in 3 key points" },
+    { label: "Key requirements", prompt: "What are the key requirements for this tender?" },
+    { label: "Risk analysis", prompt: "What are the main risks with this tender?" },
+    { label: "Missing evidence", prompt: "What evidence might we be missing for this bid?" },
+  ];
+
   if (loading || !tender) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">Loading tender...</p>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </Layout>
     );
@@ -220,10 +253,10 @@ export default function TenderDetailPage() {
 
   const scoreBreakdown = score
     ? [
-        { label: "Service Fit", value: score.service_fit || 0, color: "text-purple-600" },
-        { label: "Geography Fit", value: score.geography_fit || 0, color: "text-blue-600" },
-        { label: "Compliance Fit", value: score.compliance_fit || 0, color: "text-green-600" },
-        { label: "Evidence Fit", value: score.evidence_fit || 0, color: "text-orange-600" },
+        { label: "Service Fit", value: score.service_fit || 0, max: 25, color: "bg-purple-500" },
+        { label: "Geography Fit", value: score.geography_fit || 0, max: 15, color: "bg-blue-500" },
+        { label: "Compliance Fit", value: score.compliance_fit || 0, max: 20, color: "bg-green-500" },
+        { label: "Evidence Fit", value: score.evidence_fit || 0, max: 20, color: "bg-orange-500" },
       ]
     : [];
 
@@ -231,518 +264,340 @@ export default function TenderDetailPage() {
     <Layout>
       <SEO title={`${tender.title} - TenderFlow AI`} description={`Tender details for ${tender.title}`} />
 
-      <div className="p-8">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <h1 className="text-3xl font-heading font-bold mb-2">{tender.title}</h1>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4" />
-                  {tender.authority}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4" />
-                  {tender.location}
-                </div>
-                {tender.deadline && (
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4" />
-                    Deadline: {new Date(tender.deadline).toLocaleDateString("en-GB")}
-                  </div>
-                )}
-                {tender.value && (
-                  <div className="flex items-center gap-1.5">
-                    <DollarSign className="w-4 h-4" />
-                    {new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(tender.value)}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <Button variant="outline">Edit Details</Button>
-              <Button>Generate Bid</Button>
-            </div>
-          </div>
-
-          {/* Score Banner */}
-          {score && (
-            <Card className="bg-gradient-hero text-white shadow-medium">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="w-5 h-5" />
-                      <span className="text-sm font-medium opacity-90">AI Analysis Complete</span>
-                    </div>
-                    <h3 className="text-3xl font-bold mb-1">{score.total_score}% Match</h3>
-                    <p className="opacity-90 text-sm">
-                      {(score.total_score || 0) >= 80
-                        ? "Strong recommendation to bid"
-                        : (score.total_score || 0) >= 60
-                        ? "Consider bidding with preparation"
-                        : "Review carefully before committing"}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="lg" variant="secondary">
-                      Mark as Bid
-                    </Button>
-                    <Button size="lg" variant="outline" className="text-white border-white/30 hover:bg-white/10">
-                      No Bid
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="analysis">AI Analysis</TabsTrigger>
-            <TabsTrigger value="chat">Chat Assistant</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview">
-            <div className="grid grid-cols-3 gap-6">
-              <Card className="col-span-2 shadow-soft">
-                <CardHeader>
-                  <CardTitle>Tender Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Service Type</h4>
-                    <p className="text-sm">{tender.service_type || "Not specified"}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Status</h4>
-                    <Badge>{tender.status}</Badge>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Decision</h4>
-                    {tender.decision ? (
+      <div className="h-[calc(100vh-4rem)] flex">
+        {/* LEFT SIDE - Tender Details */}
+        <div className="w-1/2 border-r border-border overflow-y-auto">
+          <div className="p-6 space-y-6">
+            {/* Header */}
+            <div>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant={tender.status === "new" ? "default" : "secondary"}>
+                      {tender.status}
+                    </Badge>
+                    {tender.decision && (
                       <Badge variant={tender.decision === "bid" ? "default" : "destructive"}>
-                        {tender.decision === "bid" ? "Bid" : "No Bid"}
+                        {tender.decision === "bid" ? "✓ Bid" : "✗ No Bid"}
                       </Badge>
-                    ) : (
-                      <Badge variant="secondary">Under Review</Badge>
                     )}
                   </div>
-                  {tender.description && (
-                    <div>
-                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Description</h4>
-                      <p className="text-sm whitespace-pre-wrap">{tender.description}</p>
+                  <h1 className="text-2xl font-heading font-bold mb-3">{tender.title}</h1>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Building2 className="w-4 h-4" />
+                      {tender.authority}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-soft">
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start">
-                    <FileText className="w-4 h-4 mr-2" />
-                    View Documents
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Add Note
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Clock className="w-4 h-4 mr-2" />
-                    Set Reminder
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="analysis" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>AI Tender Evaluation</CardTitle>
-                    <CardDescription>
-                      Get an instant AI-powered assessment of this tender's suitability
-                    </CardDescription>
-                  </div>
-                  <Button
-                    onClick={handleRunEvaluation}
-                    disabled={isEvaluating}
-                  >
-                    {isEvaluating ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Evaluating...
-                      </>
-                    ) : (
-                      "Run AI Evaluation"
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="w-4 h-4" />
+                      {tender.location}
+                    </div>
+                    {tender.deadline && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="w-4 h-4" />
+                        {new Date(tender.deadline).toLocaleDateString("en-GB")}
+                      </div>
                     )}
-                  </Button>
+                    {tender.value && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <DollarSign className="w-4 h-4" />
+                        {new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(tender.value)}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {evaluationError && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Evaluation Failed</AlertTitle>
-                    <AlertDescription>{evaluationError}</AlertDescription>
-                  </Alert>
-                )}
+              </div>
 
-                {evaluation && (
-                  <div className="space-y-6">
-                    {/* Decision Badge */}
-                    <div className="flex items-center gap-4">
-                      <Badge
-                        variant={
-                          evaluation.decision === "Bid"
-                            ? "default"
-                            : evaluation.decision === "Review"
-                            ? "secondary"
-                            : "destructive"
-                        }
-                        className="text-lg px-4 py-2"
-                      >
-                        {evaluation.decision}
-                      </Badge>
+              {/* Score Banner */}
+              {score && (
+                <Card className="bg-gradient-hero text-white">
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-3xl font-bold">{evaluation.score}%</div>
-                        <div className="text-sm text-muted-foreground">
-                          Overall Score
+                        <div className="flex items-center gap-2 mb-1">
+                          <Target className="w-4 h-4" />
+                          <span className="text-sm font-medium">AI Match Score</span>
+                        </div>
+                        <div className="text-3xl font-bold">{score.total_score}%</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm opacity-90 mb-2">
+                          {(score.total_score || 0) >= 80
+                            ? "Strong Recommendation"
+                            : (score.total_score || 0) >= 60
+                            ? "Consider Bidding"
+                            : "Review Carefully"}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="secondary" onClick={() => router.push(`/documents?tender=${tender.id}`)}>
+                            Generate Bid
+                          </Button>
                         </div>
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
-                    {/* Score Breakdown */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Service Fit</span>
-                          <span className="font-medium">
-                            {evaluation.service_fit}/25
-                          </span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{
-                              width: `${(evaluation.service_fit / 25) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
+            <Separator />
 
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Geography Fit</span>
-                          <span className="font-medium">
-                            {evaluation.geography_fit}/15
-                          </span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{
-                              width: `${(evaluation.geography_fit / 15) * 100}%`,
-                            }}
-                          />
-                        </div>
+            {/* Score Breakdown */}
+            {scoreBreakdown.length > 0 && (
+              <div>
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  Score Breakdown
+                </h3>
+                <div className="space-y-4">
+                  {scoreBreakdown.map((item) => (
+                    <div key={item.label}>
+                      <div className="flex items-center justify-between mb-2 text-sm">
+                        <span className="font-medium">{item.label}</span>
+                        <span className="text-muted-foreground">
+                          {item.value}/{item.max}
+                        </span>
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Compliance Fit</span>
-                          <span className="font-medium">
-                            {evaluation.compliance_fit}/20
-                          </span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{
-                              width: `${(evaluation.compliance_fit / 20) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Evidence Fit</span>
-                          <span className="font-medium">
-                            {evaluation.evidence_fit}/20
-                          </span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{
-                              width: `${(evaluation.evidence_fit / 20) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Commercial Viability</span>
-                          <span className="font-medium">
-                            {evaluation.commercial_viability}/10
-                          </span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{
-                              width: `${(evaluation.commercial_viability / 10) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Effort Score</span>
-                          <span className="font-medium">
-                            {evaluation.effort}/10
-                          </span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary"
-                            style={{
-                              width: `${(evaluation.effort / 10) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
+                      <Progress 
+                        value={(item.value / item.max) * 100} 
+                        className="h-2"
+                      />
                     </div>
-
-                    {/* Why Bid/No Bid */}
-                    <div>
-                      <h3 className="font-semibold mb-2">Key Reasons</h3>
-                      <ul className="space-y-1">
-                        {evaluation.why.map((reason, index) => (
-                          <li key={index} className="flex items-start gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
-                            <span className="text-sm">{reason}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Risks */}
-                    {evaluation.risks.length > 0 && (
-                      <div>
-                        <h3 className="font-semibold mb-2">Identified Risks</h3>
-                        <ul className="space-y-1">
-                          {evaluation.risks.map((risk, index) => (
-                            <li key={index} className="flex items-start gap-2">
-                              <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5" />
-                              <span className="text-sm">{risk}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Missing Evidence */}
-                    {evaluation.missing_evidence.length > 0 && (
-                      <div>
-                        <h3 className="font-semibold mb-2">Missing Evidence</h3>
-                        <ul className="space-y-1">
-                          {evaluation.missing_evidence.map((evidence, index) => (
-                            <li key={index} className="flex items-start gap-2">
-                              <FileText className="h-4 w-4 text-blue-500 mt-0.5" />
-                              <span className="text-sm">{evidence}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Next Steps */}
-                    <div>
-                      <h3 className="font-semibold mb-2">Recommended Next Steps</h3>
-                      <ol className="space-y-1 list-decimal list-inside">
-                        {evaluation.next_steps.map((step, index) => (
-                          <li key={index} className="text-sm">
-                            {step}
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  </div>
-                )}
-
-                {!evaluation && !isEvaluating && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Click "Run AI Evaluation" to get an instant assessment</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="chat">
-            <Card className="h-[600px] flex flex-col shadow-medium">
-              <CardHeader className="border-b border-border">
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-primary" />
-                  AI Chat Assistant
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col p-0">
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                  {messages.length === 0 ? (
-                    <div className="text-center py-12">
-                      <MessageSquare className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-                      <p className="text-muted-foreground font-medium">Start a conversation</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Ask me anything about this tender
-                      </p>
-                    </div>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-4"
+                  onClick={handleRunEvaluation}
+                  disabled={isEvaluating}
+                >
+                  {isEvaluating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Evaluating...
+                    </>
                   ) : (
-                    messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex gap-3 ${msg.is_ai ? "" : "flex-row-reverse"}`}
-                      >
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            msg.is_ai ? "bg-primary text-primary-foreground" : "bg-muted"
-                          }`}
-                        >
-                          {msg.is_ai ? <Sparkles className="w-4 h-4" /> : "U"}
-                        </div>
-                        <div
-                          className={`flex-1 p-4 rounded-lg max-w-2xl ${
-                            msg.is_ai ? "bg-muted" : "bg-primary text-primary-foreground"
-                          }`}
-                        >
-                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                          <p
-                            className={`text-xs mt-2 ${
-                              msg.is_ai ? "text-muted-foreground" : "text-primary-foreground/70"
-                            }`}
-                          >
-                            {new Date(msg.created_at).toLocaleTimeString()}
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Re-run AI Evaluation
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Description */}
+            {tender.description && (
+              <div>
+                <h3 className="font-semibold mb-3">Description</h3>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {tender.description}
+                </p>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Documents */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Documents ({files.length})
+                </h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowUploader(!showUploader)}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload
+                </Button>
+              </div>
+
+              {showUploader && (
+                <div className="mb-4">
+                  <FileUploader
+                    tenderId={tender.id}
+                    onUploadComplete={() => {
+                      if (typeof id === "string") {
+                        fetchTenderData(id);
+                      }
+                      setShowUploader(false);
+                    }}
+                  />
+                </div>
+              )}
+
+              {files.length > 0 ? (
+                <div className="space-y-2">
+                  {files.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-4 h-4 text-blue-500" />
+                        <div>
+                          <p className="text-sm font-medium">{file.file_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(file.created_at).toLocaleDateString("en-GB")}
                           </p>
                         </div>
                       </div>
-                    ))
-                  )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(file.file_url, "_blank")}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No documents uploaded yet
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
 
-                {/* Input */}
-                <div className="border-t border-border p-4">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Ask about this tender..."
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage();
-                        }
-                      }}
-                      disabled={sending}
-                    />
-                    <Button onClick={handleSendMessage} disabled={sending}>
-                      <Send className="w-4 h-4" />
-                    </Button>
+        {/* RIGHT SIDE - AI Chat Assistant */}
+        <div className="w-1/2 flex flex-col bg-muted/30">
+          {/* Chat Header */}
+          <div className="p-4 border-b border-border bg-background">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-hero flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-semibold">AI Chat Assistant</h2>
+                <p className="text-xs text-muted-foreground">
+                  Ask me anything about this tender
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-4 pb-4">
+              {messages.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="w-8 h-8 text-primary" />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Try: "Summarise this tender" • "What are the risks?" • "Draft a response"
+                  <h3 className="font-semibold mb-2">Start a conversation</h3>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Try one of these quick actions:
                   </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="documents" className="mt-6 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Upload Tender Documents</CardTitle>
-                <CardDescription>
-                  Upload PDFs, Word documents, or Excel spreadsheets for this tender. Our AI will automatically parse them.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FileUploader 
-                  tenderId={tender.id} 
-                  onUploadComplete={() => {
-                    // Refresh tender data to show new files
-                    if (typeof id === "string") {
-                      fetchTenderData(id);
-                    }
-                  }} 
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Generated Documents</CardTitle>
-                  <DocumentExporter 
-                    title={`${tender.title} - Bid Response`}
-                    content={[
-                      {
-                        heading: "Executive Summary",
-                        content: "This is a placeholder for the generated executive summary. The AI will populate this based on the tender requirements and your evidence library."
-                      },
-                      {
-                        heading: "Method Statement",
-                        content: "We provide high-quality care services tailored to the specific needs of the local authority. Our safeguarding protocols meet all CQC standards."
-                      }
-                    ]}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 border border-border rounded-lg bg-muted/30">
-                    <div className="flex items-center gap-3 mb-2">
-                      <FileText className="w-5 h-5 text-blue-500" />
-                      <h4 className="font-medium">Draft Method Statement</h4>
-                      <Badge variant="outline">Draft</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Generated from AI Analysis • Contains answers to 3 mandatory questions
-                    </p>
-                    <div className="flex gap-2">
-                      <Button variant="secondary" size="sm">Edit Document</Button>
-                    </div>
+                  <div className="grid grid-cols-2 gap-2 max-w-md mx-auto">
+                    {quickActions.map((action) => (
+                      <Button
+                        key={action.label}
+                        variant="outline"
+                        size="sm"
+                        className="justify-start h-auto py-3 px-4"
+                        onClick={() => {
+                          setNewMessage(action.prompt);
+                          handleSendMessage();
+                        }}
+                      >
+                        <ChevronRight className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span className="text-left text-xs">{action.label}</span>
+                      </Button>
+                    ))}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              ) : (
+                messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex gap-3 ${msg.is_ai ? "" : "flex-row-reverse"}`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        msg.is_ai
+                          ? "bg-gradient-hero text-white"
+                          : "bg-primary text-primary-foreground"
+                      }`}
+                    >
+                      {msg.is_ai ? (
+                        <Sparkles className="w-4 h-4" />
+                      ) : (
+                        <span className="text-sm font-medium">
+                          {user?.email?.[0]?.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 max-w-[80%]">
+                      <div
+                        className={`p-4 rounded-2xl ${
+                          msg.is_ai
+                            ? "bg-background border border-border"
+                            : "bg-primary text-primary-foreground"
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                          {msg.content}
+                        </p>
+                      </div>
+                      <p
+                        className={`text-xs mt-1.5 px-2 ${
+                          msg.is_ai ? "text-muted-foreground" : "text-right text-muted-foreground"
+                        }`}
+                      >
+                        {new Date(msg.created_at).toLocaleTimeString("en-GB", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
 
-          <TabsContent value="activity">
-            <Card className="shadow-medium">
-              <CardHeader>
-                <CardTitle>Activity Log</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground text-center py-8">No activity yet</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          {/* Input Area */}
+          <div className="p-4 border-t border-border bg-background">
+            <div className="flex gap-2">
+              <Textarea
+                placeholder="Ask about this tender..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                disabled={sending}
+                className="min-h-[60px] max-h-[120px] resize-none"
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={sending || !newMessage.trim()}
+                className="self-end"
+              >
+                {sending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Press Enter to send, Shift+Enter for new line
+            </p>
+          </div>
+        </div>
       </div>
     </Layout>
   );
