@@ -31,14 +31,10 @@ import {
   ChevronRight,
   Download,
   Plus,
-  CheckCircle2,
   Circle,
-  Clock,
   MessageSquare,
   Trash2,
   User,
-  AlertCircle,
-  FileText,
   Edit,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -86,7 +82,7 @@ interface TenderFile {
 export default function TenderDetailPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { user } = useAuth();
+  const { user, organisation } = useAuth();
 
   const [tender, setTender] = useState<Tender | null>(null);
   const [score, setScore] = useState<TenderScore | null>(null);
@@ -802,7 +798,9 @@ export default function TenderDetailPage() {
                   <Card>
                     <CardContent className="text-center py-12">
                       <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-                      <p className="text-muted-foreground font-medium">No tasks yet</p>
+                      <p className="text-muted-foreground font-medium">
+                        No tasks yet
+                      </p>
                       <p className="text-sm text-muted-foreground mt-1">
                         Create tasks to track work for this tender
                       </p>
@@ -953,7 +951,7 @@ export default function TenderDetailPage() {
                           placeholder="Add a comment..."
                           value={newComment}
                           onChange={(e) => setNewComment(e.target.value)}
-                          className="min-h-[80px]"
+                          className="min-h-[60px] max-h-[120px] resize-none"
                         />
                         <div className="flex justify-end mt-3">
                           <Button
