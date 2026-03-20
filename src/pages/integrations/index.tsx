@@ -33,6 +33,7 @@ import {
   Clock,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { ContextHelp } from "@/components/ContextHelp";
 
 export default function IntegrationsPage() {
   const { organisation } = useAuth();
@@ -257,272 +258,291 @@ export default function IntegrationsPage() {
       />
 
       <div className="p-8">
-        {/* Header */}
+        {/* Header with Context Help */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-heading font-bold mb-2">Portal Connections</h1>
+            <h1 className="text-3xl font-bold mb-2">Portal Connections</h1>
             <p className="text-muted-foreground">
-              Connect to procurement portals and tender sources for automatic ingestion
+              Connect tender sources to automate discovery and ingestion
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="lg">
-                <Plus className="mr-2 h-5 w-5" />
-                Add Connection
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add Portal Connection</DialogTitle>
-                <DialogDescription>
-                  Connect a tender source to automatically receive updates
-                </DialogDescription>
-              </DialogHeader>
+          <ContextHelp
+            title="Portal Connections"
+            description="Connect to tender portals, email alerts, and monitoring services to automatically import tenders into TenderFlow."
+            steps={[
+              "Click 'Add Connection' to get started",
+              "Choose connection type (Public API, Email, Link Watcher, or Portal)",
+              "Fill in configuration details",
+              "Click 'Sync Now' to test the connection",
+              "System will automatically sync based on your schedule"
+            ]}
+            tips={[
+              "Start with Find a Tender - it's easiest to set up",
+              "Gmail connection requires Google OAuth (one-time setup)",
+              "Link Watcher is great for monitoring specific tender pages",
+              "Check 'View Sync History' to see what's been imported"
+            ]}
+            tutorialLink="/help/portal-connections"
+          />
+        </div>
 
-              {!formData.connectionType ? (
-                <div className="grid grid-cols-2 gap-4 py-4">
-                  {connectionTypes.map((type) => {
-                    const Icon = type.icon;
-                    return (
-                      <Card
-                        key={type.value}
-                        className={`cursor-pointer hover:bg-muted/50 transition-colors relative ${
-                          type.comingSoon ? "opacity-60" : ""
-                        }`}
-                        onClick={() => {
-                          if (!type.comingSoon) {
-                            setFormData({
-                              ...formData,
-                              connectionType: type.value as PortalConnection["connectionType"],
-                            });
-                          }
-                        }}
-                      >
-                        <CardContent className="p-6 text-center">
-                          {type.recommended && (
-                            <div className="absolute top-2 right-2">
-                              <Badge variant="default" className="text-xs">
-                                Recommended
-                              </Badge>
-                            </div>
-                          )}
-                          <Icon className="h-8 w-8 mx-auto mb-3 text-primary" />
-                          <h3 className="font-semibold mb-1">{type.label}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {type.description}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="lg">
+              <Plus className="mr-2 h-5 w-5" />
+              Add Connection
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add Portal Connection</DialogTitle>
+              <DialogDescription>
+                Connect a tender source to automatically receive updates
+              </DialogDescription>
+            </DialogHeader>
+
+            {!formData.connectionType ? (
+              <div className="grid grid-cols-2 gap-4 py-4">
+                {connectionTypes.map((type) => {
+                  const Icon = type.icon;
+                  return (
+                    <Card
+                      key={type.value}
+                      className={`cursor-pointer hover:bg-muted/50 transition-colors relative ${
+                        type.comingSoon ? "opacity-60" : ""
+                      }`}
+                      onClick={() => {
+                        if (!type.comingSoon) {
+                          setFormData({
+                            ...formData,
+                            connectionType: type.value as PortalConnection["connectionType"],
+                          });
+                        }
+                      }}
+                    >
+                      <CardContent className="p-6 text-center">
+                        {type.recommended && (
+                          <div className="absolute top-2 right-2">
+                            <Badge variant="default" className="text-xs">
+                              Recommended
+                            </Badge>
+                          </div>
+                        )}
+                        <Icon className="h-8 w-8 mx-auto mb-3 text-primary" />
+                        <h3 className="font-semibold mb-1">{type.label}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {type.description}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <form onSubmit={handleCreateConnection} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Connection Name *</Label>
+                  <Input
+                    id="name"
+                    placeholder="e.g., Find a Tender - Adult Care"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    required
+                  />
                 </div>
-              ) : (
-                <form onSubmit={handleCreateConnection} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Connection Name *</Label>
-                    <Input
-                      id="name"
-                      placeholder="e.g., Find a Tender - Adult Care"
-                      value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
 
-                  {formData.connectionType === "PUBLIC_API" && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="sourceType">Source *</Label>
-                        <select
-                          id="sourceType"
-                          className="w-full rounded-md border border-input bg-background px-3 py-2"
-                          value={formData.sourceType}
-                          onChange={(e) =>
-                            setFormData({ ...formData, sourceType: e.target.value })
-                          }
-                          required
-                        >
-                          <option value="">Select source...</option>
-                          <option value="find_a_tender">Find a Tender (UK)</option>
-                          <option value="contracts_finder">Contracts Finder (UK)</option>
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="keywords">Keywords</Label>
-                        <Input
-                          id="keywords"
-                          placeholder="e.g., adult social care, domiciliary care"
-                          value={formData.keywords}
-                          onChange={(e) =>
-                            setFormData({ ...formData, keywords: e.target.value })
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Comma-separated keywords to filter tenders
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="location">Location</Label>
-                        <Input
-                          id="location"
-                          placeholder="e.g., London, North West, Manchester"
-                          value={formData.location}
-                          onChange={(e) =>
-                            setFormData({ ...formData, location: e.target.value })
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Geographic region or postcode
-                        </p>
-                      </div>
-                    </>
-                  )}
-
-                  {formData.connectionType === "EMAIL" && (
-                    <div className="space-y-4">
-                      <div className="rounded-lg border p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
-                        <h4 className="font-medium mb-2 flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-blue-600" /> Gmail OAuth Integration
-                        </h4>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Securely connect your Gmail account to automatically parse incoming tender alerts. We use OAuth 2.0 - no passwords stored.
-                        </p>
-                        <Button
-                          type="button"
-                          onClick={handleGmailConnect}
-                          className="w-full bg-white hover:bg-gray-50 text-gray-800 border"
-                        >
-                          <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                            <path
-                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                              fill="#4285F4"
-                            />
-                            <path
-                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                              fill="#34A853"
-                            />
-                            <path
-                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                              fill="#FBBC05"
-                            />
-                            <path
-                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                              fill="#EA4335"
-                            />
-                          </svg>
-                          Connect with Google
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {formData.connectionType === "PORTAL_SESSION" && (
-                    <>
-                      <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 p-4 mb-4">
-                        <p className="text-sm">
-                          <strong>Proactis Portal Connector</strong><br/>
-                          Connect to Proactis procurement portals using your portal credentials. We encrypt all credentials and never store passwords in plaintext.
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="baseUrl">Portal URL *</Label>
-                        <Input
-                          id="baseUrl"
-                          type="url"
-                          placeholder="https://portal.proactis.com"
-                          value={formData.baseUrl}
-                          onChange={(e) =>
-                            setFormData({ ...formData, baseUrl: e.target.value })
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="apiKey">API Key / Token</Label>
-                        <Input
-                          id="apiKey"
-                          type="password"
-                          placeholder="Your API key or authentication token"
-                          value={formData.apiKey}
-                          onChange={(e) =>
-                            setFormData({ ...formData, apiKey: e.target.value })
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Will be encrypted before storage
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="environmentName">Environment Name</Label>
-                        <Input
-                          id="environmentName"
-                          placeholder="e.g., production, demo"
-                          value={formData.environmentName}
-                          onChange={(e) =>
-                            setFormData({ ...formData, environmentName: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 p-3 text-sm">
-                        <p className="text-amber-800 dark:text-amber-200">
-                          ⚠️ If you don't have API access, you can use Link Watcher as a fallback to monitor specific tender URLs.
-                        </p>
-                      </div>
-                    </>
-                  )}
-
-                  {formData.connectionType === "LINK_WATCHER" && (
+                {formData.connectionType === "PUBLIC_API" && (
+                  <>
                     <div className="space-y-2">
-                      <Label htmlFor="url">Tender URL to Monitor *</Label>
-                      <Input
-                        id="url"
-                        type="url"
-                        placeholder="https://portal.example.com/tender/12345"
-                        value={formData.url}
+                      <Label htmlFor="sourceType">Source *</Label>
+                      <select
+                        id="sourceType"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2"
+                        value={formData.sourceType}
                         onChange={(e) =>
-                          setFormData({ ...formData, url: e.target.value })
+                          setFormData({ ...formData, sourceType: e.target.value })
+                        }
+                        required
+                      >
+                        <option value="">Select source...</option>
+                        <option value="find_a_tender">Find a Tender (UK)</option>
+                        <option value="contracts_finder">Contracts Finder (UK)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="keywords">Keywords</Label>
+                      <Input
+                        id="keywords"
+                        placeholder="e.g., adult social care, domiciliary care"
+                        value={formData.keywords}
+                        onChange={(e) =>
+                          setFormData({ ...formData, keywords: e.target.value })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Comma-separated keywords to filter tenders
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Location</Label>
+                      <Input
+                        id="location"
+                        placeholder="e.g., London, North West, Manchester"
+                        value={formData.location}
+                        onChange={(e) =>
+                          setFormData({ ...formData, location: e.target.value })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Geographic region or postcode
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {formData.connectionType === "EMAIL" && (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-blue-600" /> Gmail OAuth Integration
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Securely connect your Gmail account to automatically parse incoming tender alerts. We use OAuth 2.0 - no passwords stored.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handleGmailConnect}
+                        className="w-full bg-white hover:bg-gray-50 text-gray-800 border"
+                      >
+                        <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                          <path
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                            fill="#4285F4"
+                          />
+                          <path
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                            fill="#34A853"
+                          />
+                          <path
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                            fill="#FBBC05"
+                          />
+                          <path
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                            fill="#EA4335"
+                          />
+                        </svg>
+                        Connect with Google
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {formData.connectionType === "PORTAL_SESSION" && (
+                  <>
+                    <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 p-4 mb-4">
+                      <p className="text-sm">
+                        <strong>Proactis Portal Connector</strong><br/>
+                        Connect to Proactis procurement portals using your portal credentials. We encrypt all credentials and never store passwords in plaintext.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="baseUrl">Portal URL *</Label>
+                      <Input
+                        id="baseUrl"
+                        type="url"
+                        placeholder="https://portal.proactis.com"
+                        value={formData.baseUrl}
+                        onChange={(e) =>
+                          setFormData({ ...formData, baseUrl: e.target.value })
                         }
                         required
                       />
-                      <p className="text-sm text-muted-foreground">
-                        We'll check this URL every few hours and notify you of changes, new documents, or deadline extensions.
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="apiKey">API Key / Token</Label>
+                      <Input
+                        id="apiKey"
+                        type="password"
+                        placeholder="Your API key or authentication token"
+                        value={formData.apiKey}
+                        onChange={(e) =>
+                          setFormData({ ...formData, apiKey: e.target.value })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Will be encrypted before storage
                       </p>
                     </div>
-                  )}
+                    <div className="space-y-2">
+                      <Label htmlFor="environmentName">Environment Name</Label>
+                      <Input
+                        id="environmentName"
+                        placeholder="e.g., production, demo"
+                        value={formData.environmentName}
+                        onChange={(e) =>
+                          setFormData({ ...formData, environmentName: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 p-3 text-sm">
+                      <p className="text-amber-800 dark:text-amber-200">
+                        ⚠️ If you don't have API access, you can use Link Watcher as a fallback to monitor specific tender URLs.
+                      </p>
+                    </div>
+                  </>
+                )}
 
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setFormData({
-                          name: "",
-                          connectionType: "" as PortalConnection["connectionType"],
-                          sourceType: "",
-                          keywords: "",
-                          location: "",
-                          email: "",
-                          url: "",
-                          baseUrl: "",
-                          apiKey: "",
-                          environmentName: "",
-                        });
-                      }}
-                    >
-                      Back
-                    </Button>
-                    <Button type="submit">
-                      {formData.connectionType === "EMAIL" ? "Continue to Gmail" : "Create Connection"}
-                    </Button>
+                {formData.connectionType === "LINK_WATCHER" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="url">Tender URL to Monitor *</Label>
+                    <Input
+                      id="url"
+                      type="url"
+                      placeholder="https://portal.example.com/tender/12345"
+                      value={formData.url}
+                      onChange={(e) =>
+                        setFormData({ ...formData, url: e.target.value })
+                      }
+                      required
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      We'll check this URL every few hours and notify you of changes, new documents, or deadline extensions.
+                    </p>
                   </div>
-                </form>
-              )}
-            </DialogContent>
-          </Dialog>
-        </div>
+                )}
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setFormData({
+                        name: "",
+                        connectionType: "" as PortalConnection["connectionType"],
+                        sourceType: "",
+                        keywords: "",
+                        location: "",
+                        email: "",
+                        url: "",
+                        baseUrl: "",
+                        apiKey: "",
+                        environmentName: "",
+                      });
+                    }}
+                  >
+                    Back
+                  </Button>
+                  <Button type="submit">
+                    {formData.connectionType === "EMAIL" ? "Continue to Gmail" : "Create Connection"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Connections List */}
         {loading ? (

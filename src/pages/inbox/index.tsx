@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   Trash2,
 } from "lucide-react";
+import { ContextHelp } from "@/components/ContextHelp";
 
 export default function InboxPage() {
   const { organisation } = useAuth();
@@ -189,18 +190,30 @@ export default function InboxPage() {
       />
 
       <div className="p-8">
-        {/* Header */}
+        {/* Header with Context Help */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-heading font-bold mb-2">Tender Inbox</h1>
+            <h1 className="text-3xl font-bold mb-2">Tender Inbox</h1>
             <p className="text-muted-foreground">
-              All tender updates, messages, and alerts in one place
+              All your tender updates and alerts in one place
             </p>
           </div>
-          <Button onClick={() => router.push("/integrations")}>
-            <Filter className="mr-2 h-4 w-4" />
-            Manage Connections
-          </Button>
+          <ContextHelp
+            title="Tender Inbox"
+            description="Your unified inbox aggregates all tender-related messages from portals, emails, and monitored URLs."
+            steps={[
+              "Check the 'Unread' tab to see new items",
+              "Use 'Action Required' tab to prioritize tasks",
+              "Click any item to view full details",
+              "Mark items as read or archive when done"
+            ]}
+            tips={[
+              "Items are automatically categorized by type and priority",
+              "Use search to find specific tenders or authorities",
+              "Overdue items appear in red - handle these first!"
+            ]}
+            tutorialLink="/help/tender-inbox"
+          />
         </div>
 
         {/* Search */}

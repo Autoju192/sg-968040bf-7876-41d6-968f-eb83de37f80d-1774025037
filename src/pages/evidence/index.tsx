@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Library, Edit, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { ContextHelp } from "@/components/ContextHelp";
 
 interface Evidence {
   id: string;
@@ -128,100 +129,119 @@ export default function EvidenceLibraryPage() {
       />
 
       <div className="p-8">
-        {/* Header */}
+        {/* Header with Context Help */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-heading font-bold mb-2">Evidence Library</h1>
+            <h1 className="text-3xl font-bold mb-2">Evidence Library</h1>
             <p className="text-muted-foreground">
-              Reusable company content for bid responses
+              Store reusable content for faster bid responses
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="lg" className="gap-2">
-                <Plus className="w-5 h-5" />
-                Add Evidence
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Add Evidence Item</DialogTitle>
-                <DialogDescription>
-                  Create reusable content for your bid responses
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="category">Category *</Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, category: value })
-                    }
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="title">Title *</Label>
-                  <Input
-                    id="title"
-                    placeholder="e.g., Our Safeguarding Policy"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="content">Content *</Label>
-                  <Textarea
-                    id="content"
-                    placeholder="Enter the evidence content..."
-                    value={formData.content}
-                    onChange={(e) =>
-                      setFormData({ ...formData, content: e.target.value })
-                    }
-                    rows={10}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="tags">Tags (comma-separated)</Label>
-                  <Input
-                    id="tags"
-                    placeholder="e.g., safeguarding, policy, CQC"
-                    value={formData.tags}
-                    onChange={(e) =>
-                      setFormData({ ...formData, tags: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit">Create Evidence</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <ContextHelp
+            title="Evidence Library"
+            description="Your Evidence Library stores reusable content like company policies, case studies, and standard responses that the AI uses when generating bid documents."
+            steps={[
+              "Click 'Add Evidence' to create a new item",
+              "Choose category (Company Profile, Safeguarding, Staffing, Quality, Compliance)",
+              "Write or paste your content",
+              "Add tags for easy searching",
+              "The AI will use this content when generating bid responses"
+            ]}
+            tips={[
+              "Keep content up-to-date - outdated policies can cost you bids",
+              "Add case studies with outcomes - these strengthen bids",
+              "Use tags consistently for better AI matching",
+              "Include measurable results and statistics where possible"
+            ]}
+            tutorialLink="/help/evidence-library"
+          />
         </div>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="lg" className="gap-2">
+              <Plus className="w-5 h-5" />
+              Add Evidence
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add Evidence Item</DialogTitle>
+              <DialogDescription>
+                Create reusable content for your bid responses
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="category">Category *</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, category: value })
+                  }
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  placeholder="e.g., Our Safeguarding Policy"
+                  value={formData.title}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="content">Content *</Label>
+                <Textarea
+                  id="content"
+                  placeholder="Enter the evidence content..."
+                  value={formData.content}
+                  onChange={(e) =>
+                    setFormData({ ...formData, content: e.target.value })
+                  }
+                  rows={10}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="tags">Tags (comma-separated)</Label>
+                <Input
+                  id="tags"
+                  placeholder="e.g., safeguarding, policy, CQC"
+                  value={formData.tags}
+                  onChange={(e) =>
+                    setFormData({ ...formData, tags: e.target.value })
+                  }
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Create Evidence</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Filters */}
         <div className="bg-card rounded-lg border border-border p-6 mb-6 shadow-soft">

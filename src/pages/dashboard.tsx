@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { getTenders } from "@/services/tenderService";
 import type { Tender } from "@/services/tenderService";
+import { ContextHelp } from "@/components/ContextHelp";
 
 export default function Dashboard() {
   const { organisation, loading: authLoading } = useAuth();
@@ -109,12 +110,28 @@ export default function Dashboard() {
       />
       
       <div className="p-4 md:p-8">
-        {/* Header */}
-        <div className="mb-6 md:mb-8">
-          <h1 className="text-2xl md:text-3xl font-heading font-bold mb-2">Dashboard</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Welcome back! Here&apos;s what&apos;s happening with your tenders.
-          </p>
+        {/* Header with Context Help */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">Overview of your tender pipeline and activity</p>
+          </div>
+          <ContextHelp
+            title="Dashboard Overview"
+            description="Your dashboard shows key metrics, recent activity, and high-priority tenders at a glance."
+            steps={[
+              "Check KPI cards at the top for quick stats (total tenders, active bids, submissions, deadlines)",
+              "Review recent activity feed to see what's new",
+              "Monitor high-fit tenders (AI scored 80+) for quick action",
+              "Click any tender to view details or start working"
+            ]}
+            tips={[
+              "Dashboard refreshes automatically when new tenders arrive",
+              "High-fit tenders are AI-scored based on your past wins",
+              "Click 'View All' to see your full tender list"
+            ]}
+            tutorialLink="/help/dashboard"
+          />
         </div>
 
         {/* KPIs */}
