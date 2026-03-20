@@ -1112,6 +1112,117 @@ export type Database = {
           },
         ]
       }
+      tutorials: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string | null
+          feature_key: string
+          helpful_count: number | null
+          id: string
+          is_published: boolean | null
+          screenshots: Json | null
+          search_terms: string[] | null
+          steps: Json | null
+          summary: string
+          tips: Json | null
+          title: string
+          troubleshooting: Json | null
+          updated_at: string | null
+          video_url: string | null
+          view_count: number | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description?: string | null
+          feature_key: string
+          helpful_count?: number | null
+          id?: string
+          is_published?: boolean | null
+          screenshots?: Json | null
+          search_terms?: string[] | null
+          steps?: Json | null
+          summary: string
+          tips?: Json | null
+          title: string
+          troubleshooting?: Json | null
+          updated_at?: string | null
+          video_url?: string | null
+          view_count?: number | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          feature_key?: string
+          helpful_count?: number | null
+          id?: string
+          is_published?: boolean | null
+          screenshots?: Json | null
+          search_terms?: string[] | null
+          steps?: Json | null
+          summary?: string
+          tips?: Json | null
+          title?: string
+          troubleshooting?: Json | null
+          updated_at?: string | null
+          video_url?: string | null
+          view_count?: number | null
+        }
+        Relationships: []
+      }
+      user_tutorial_progress: {
+        Row: {
+          bookmarked: boolean | null
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          current_step: number | null
+          id: string
+          tutorial_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          bookmarked?: boolean | null
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          tutorial_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          bookmarked?: boolean | null
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          tutorial_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tutorial_progress_tutorial_id_fkey"
+            columns: ["tutorial_id"]
+            isOneToOne: false
+            referencedRelation: "tutorials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tutorial_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           created_at: string | null
