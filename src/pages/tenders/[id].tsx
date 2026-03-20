@@ -891,130 +891,83 @@ export default function TenderDetailPage() {
                 {comments.length === 0 ? (
                   <Card className="mb-6">
                     <CardContent className="text-center py-12">
-                      <MessageSquare className="w-12 h-12 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-white" />
-                      </div>
-                      <h2 className="font-semibold">AI Chat Assistant</h2>
-                      <p className="text-xs text-muted-foreground">
-                        Ask me anything about this tender
+                      <MessageSquare className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                      <p className="text-muted-foreground font-medium">
+                        No comments yet
                       </p>
-                    </div>
-                  </div>
-
-                  {/* Messages */}
-                  <ScrollArea className="flex-1 p-4">
-                    <div className="space-y-4 pb-4">
-                      {messages.length === 0 ? (
-                        <div className="text-center py-12">
-                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Sparkles className="w-8 h-8 text-primary" />
-                          </div>
-                          <h3 className="font-semibold mb-2">Start a conversation</h3>
-                          <p className="text-sm text-muted-foreground mb-6">
-                            Try one of these quick actions:
-                          </p>
-                          <div className="grid grid-cols-2 gap-2 max-w-md mx-auto">
-                            {quickActions.map((action) => (
-                              <Button
-                                key={action.label}
-                                variant="outline"
-                                size="sm"
-                                className="justify-start h-auto py-3 px-4"
-                                onClick={() => {
-                                  setNewMessage(action.prompt);
-                                  handleSendMessage();
-                                }}
-                              >
-                                <ChevronRight className="w-4 h-4 mr-2 flex-shrink-0" />
-                                <span className="text-left text-xs">{action.label}</span>
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex gap-3 ${msg.is_ai ? "" : "flex-row-reverse"}`}
-                          >
-                            <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                msg.is_ai
-                                  ? "bg-gradient-hero text-white"
-                                  : "bg-primary text-primary-foreground"
-                              }`}
-                            >
-                              {msg.is_ai ? (
-                                <Sparkles className="w-4 h-4" />
-                              ) : (
-                                <span className="text-sm font-medium">
-                                  {user?.email?.[0]?.toUpperCase()}
-                                </span>
-                              )}
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Start a discussion about this tender
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4 mb-6">
+                    {comments.map((comment) => (
+                      <Card key={comment.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <User className="h-4 w-4 text-primary" />
                             </div>
-                            <div className="flex-1 max-w-[80%]">
-                              <div
-                                className={`p-4 rounded-2xl ${
-                                  msg.is_ai
-                                    ? "bg-background border border-border"
-                                    : "bg-primary text-primary-foreground"
-                                }`}
-                              >
-                                <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                                  {msg.content}
-                                </p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="font-medium text-sm">
+                                    {comment.users?.full_name || "User"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(comment.created_at).toLocaleString()}
+                                  </p>
+                                </div>
+                                {user?.id === comment.user_id && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive"
+                                    onClick={() => handleDeleteComment(comment.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
-                              <p
-                                className={`text-xs mt-1.5 px-2 ${
-                                  msg.is_ai ? "text-muted-foreground" : "text-right text-muted-foreground"
-                                }`}
-                              >
-                                {new Date(msg.created_at).toLocaleTimeString("en-GB", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
+                              <p className="text-sm mt-2 whitespace-pre-wrap">
+                                {comment.content}
                               </p>
                             </div>
                           </div>
-                        ))
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-                  </ScrollArea>
-
-                  {/* Input Area */}
-                  <div className="p-4 border-t border-border bg-background">
-                    <div className="flex gap-2">
-                      <Textarea
-                        placeholder="Ask about this tender..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage();
-                          }
-                        }}
-                        disabled={sending}
-                        className="min-h-[60px] max-h-[120px] resize-none"
-                      />
-                      <Button
-                        onClick={handleSendMessage}
-                        disabled={sending || !newMessage.trim()}
-                        className="self-end"
-                      >
-                        {sending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Send className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Press Enter to send, Shift+Enter for new line
-                    </p>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
-                </div>
+                )}
+
+                {/* Add Comment */}
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <Textarea
+                          placeholder="Add a comment..."
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          className="min-h-[80px]"
+                        />
+                        <div className="flex justify-end mt-3">
+                          <Button
+                            onClick={handleAddComment}
+                            disabled={!newComment.trim()}
+                          >
+                            <Send className="mr-2 h-4 w-4" />
+                            Post Comment
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               {/* Activity Tab */}
