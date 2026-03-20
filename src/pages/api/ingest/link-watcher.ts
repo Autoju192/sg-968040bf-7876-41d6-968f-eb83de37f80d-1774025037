@@ -54,7 +54,8 @@ export default async function handler(
       .eq("id", connectionId)
       .single();
 
-    const previousHash = connection?.config?.lastContentHash;
+    const config = connection?.config as Record<string, any> | undefined;
+    const previousHash = config?.lastContentHash;
     const hasChanged = previousHash && previousHash !== contentHash;
 
     let itemsCreated = 0;
@@ -111,7 +112,7 @@ export default async function handler(
       .from("portal_connections")
       .update({
         config: {
-          ...connection?.config,
+          ...(config || {}),
           lastContentHash: contentHash,
           lastCheckedAt: new Date().toISOString(),
         },

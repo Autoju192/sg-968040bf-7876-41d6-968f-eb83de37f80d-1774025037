@@ -119,7 +119,7 @@ export default async function handler(
             status: "unread",
             external_id: `${externalId}-update-${Date.now()}`,
             external_link: notice.url,
-            metadata: { notice },
+            metadata: { notice: notice as any },
           });
         } else {
           // Create new tender
@@ -162,7 +162,7 @@ export default async function handler(
               status: "unread",
               external_id: externalId,
               external_link: notice.url,
-              metadata: { notice },
+              metadata: { notice: notice as any },
             });
 
             // Create notification
