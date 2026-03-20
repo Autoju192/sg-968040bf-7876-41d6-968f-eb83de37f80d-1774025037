@@ -14,13 +14,15 @@ import {
   Zap,
   Menu,
   Inbox,
-  FileCheck
+  FileCheck,
+  HelpCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { useAuth } from "@/contexts/AuthContext";
+import { OnboardingWizard } from "@/components/OnboardingWizard";
 
 interface LayoutProps {
   children: ReactNode;
@@ -34,6 +36,7 @@ const navigation = [
   { name: "Evidence Library", href: "/evidence", icon: Library },
   { name: "Team", href: "/team", icon: Users },
   { name: "Integrations", href: "/integrations", icon: Settings },
+  { name: "Help & Tutorials", href: "/help", icon: HelpCircle },
 ];
 
 export function Layout({ children }: LayoutProps) {
@@ -137,10 +140,11 @@ export function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto bg-muted/10 p-6">
+        <main className="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-8">
           {children}
         </main>
       </div>
+      <OnboardingWizard />
     </div>
   );
 }

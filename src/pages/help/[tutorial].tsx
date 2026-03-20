@@ -59,12 +59,16 @@ export default function TutorialDetailPage() {
   const fetchTutorial = async () => {
     try {
       setLoading(true);
+      
+      const key = Array.isArray(tutorialKey) ? tutorialKey[0] : tutorialKey;
+
+      if (!key) return;
 
       // Fetch tutorial
       const { data: tutorialData, error: tutorialError } = await supabase
         .from("tutorials")
         .select("*")
-        .eq("feature_key", tutorialKey)
+        .eq("feature_key", key)
         .eq("is_published", true)
         .single();
 
@@ -96,9 +100,9 @@ export default function TutorialDetailPage() {
         category: tutorialData.category,
         summary: tutorialData.summary,
         description: tutorialData.description || "",
-        steps: tutorialData.steps || [],
-        troubleshooting: tutorialData.troubleshooting || [],
-        tips: tutorialData.tips || [],
+        steps: (tutorialData.steps as any) || [],
+        troubleshooting: (tutorialData.troubleshooting as any) || [],
+        tips: (tutorialData.tips as any) || [],
         videoUrl: tutorialData.video_url,
         completed: progress?.completed || false,
         bookmarked: progress?.bookmarked || false,
