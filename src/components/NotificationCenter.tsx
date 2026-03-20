@@ -16,7 +16,8 @@ interface Notification {
   type: string;
   title: string;
   message: string | null;
-  link: string | null;
+  tender_id: string | null;
+  task_id: string | null;
   read: boolean;
   created_at: string;
 }
@@ -167,8 +168,10 @@ export function NotificationCenter() {
                 }`}
                 onClick={() => {
                   markAsRead(notification.id);
-                  if (notification.link) {
-                    window.location.href = notification.link;
+                  if (notification.tender_id) {
+                    window.location.href = `/tenders/${notification.tender_id}`;
+                  } else if (notification.task_id) {
+                    window.location.href = `/tenders`; // Fallback for tasks
                   }
                 }}
               >

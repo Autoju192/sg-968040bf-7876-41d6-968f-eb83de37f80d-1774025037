@@ -6,7 +6,8 @@ export interface CreateNotificationParams {
   type: 'new_tender' | 'tender_update' | 'deadline' | 'message' | 'task_assigned' | 'comment' | 'system';
   title: string;
   message?: string;
-  link?: string;
+  tenderId?: string;
+  taskId?: string;
 }
 
 export const notificationService = {
@@ -22,7 +23,8 @@ export const notificationService = {
         type: params.type,
         title: params.title,
         message: params.message,
-        link: params.link,
+        tender_id: params.tenderId,
+        task_id: params.taskId,
       })
       .select()
       .single();
