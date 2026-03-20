@@ -2,12 +2,12 @@ import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/lib/supabase";
+import { inboxService, type InboxItem } from "@/services/inboxService";
 import { useRouter } from "next/router";
 import {
   Inbox,
@@ -18,31 +18,8 @@ import {
   Search,
   Filter,
   CheckCircle2,
-  Star,
-  Archive,
   Trash2,
-  ExternalLink,
 } from "lucide-react";
-
-interface InboxItem {
-  id: string;
-  tender_id: string | null;
-  source: "portal" | "email" | "api" | "manual" | "link_watcher";
-  type: "new_tender" | "update" | "clarification" | "amendment" | "deadline_change" | "message" | "document";
-  subject: string;
-  summary: string | null;
-  content: string | null;
-  action_required: boolean;
-  priority: "low" | "medium" | "high" | "urgent" | null;
-  deadline: string | null;
-  is_read: boolean;
-  assigned_to: string | null;
-  created_at: string;
-  tenders?: {
-    title: string;
-    authority: string;
-  };
-}
 
 export default function InboxPage() {
   const { organisation } = useAuth();
@@ -52,7 +29,6 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (organisation) {
@@ -65,21 +41,11 @@ export default function InboxPage() {
   }, [items, searchQuery, activeTab]);
 
   const fetchInboxItems = async () => {
+    if (!organisation) return;
     try {
-      const { data, error } = await supabase
-        .from("tender_inbox")
-        .select(`
-          *,
-          tenders (
-            title,
-            authority
-          )
-        `)
-        .eq("organisation_id", organisation?.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setItems((data as InboxItem[]) || []);
+      setLoading(true);
+      const data = await inboxService.getAll(organisation.id);
+      setItems(data);
     } catch (error) {
       console.error("Error fetching inbox:", error);
     } finally {
@@ -92,13 +58,13 @@ export default function InboxPage() {
 
     // Apply tab filter
     if (activeTab === "unread") {
-      filtered = filtered.filter((item) => !item.is_read);
+      filtered = filtered.filter((item) => item.status === "unread");
     } else if (activeTab === "action_required") {
-      filtered = filtered.filter((item) => item.action_required);
+      filtered = filtered.filter((item) => item.actionRequired);
     } else if (activeTab === "overdue") {
       const now = new Date();
       filtered = filtered.filter(
-        (item) => item.deadline && new Date(item.deadline) < now
+        (item) => item.actionDeadline && new Date(item.actionDeadline) < now && item.status !== "actioned"
       );
     }
 
@@ -106,9 +72,9 @@ export default function InboxPage() {
     if (searchQuery) {
       filtered = filtered.filter(
         (item) =>
-          item.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.summary?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.tenders?.title.toLowerCase().includes(searchQuery.toLowerCase())
+          item.tender?.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -116,64 +82,59 @@ export default function InboxPage() {
   };
 
   const markAsRead = async (itemId: string) => {
-    const { error } = await supabase
-      .from("tender_inbox")
-      .update({ is_read: true })
-      .eq("id", itemId);
-
-    if (!error) {
+    try {
+      await inboxService.markAsRead(itemId);
       setItems((prev) =>
         prev.map((item) =>
-          item.id === itemId ? { ...item, is_read: true } : item
+          item.id === itemId ? { ...item, status: "read" } : item
         )
       );
+    } catch (error) {
+      console.error("Error marking as read:", error);
     }
   };
 
   const markAsUnread = async (itemId: string) => {
-    const { error } = await supabase
-      .from("tender_inbox")
-      .update({ is_read: false })
-      .eq("id", itemId);
-
-    if (!error) {
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      await supabase.from("tender_inbox").update({ status: "unread", read_at: null }).eq("id", itemId);
       setItems((prev) =>
         prev.map((item) =>
-          item.id === itemId ? { ...item, is_read: false } : item
+          item.id === itemId ? { ...item, status: "unread", readAt: undefined } : item
         )
       );
+    } catch (error) {
+      console.error("Error marking as unread:", error);
     }
   };
 
   const deleteItem = async (itemId: string) => {
     if (!confirm("Delete this inbox item?")) return;
 
-    const { error } = await supabase
-      .from("tender_inbox")
-      .delete()
-      .eq("id", itemId);
-
-    if (!error) {
+    try {
+      await inboxService.delete(itemId);
       setItems((prev) => prev.filter((item) => item.id !== itemId));
+    } catch (error) {
+      console.error("Error deleting item:", error);
     }
   };
 
   const handleItemClick = (item: InboxItem) => {
-    if (!item.is_read) {
+    if (item.status === "unread") {
       markAsRead(item.id);
     }
-    if (item.tender_id) {
-      router.push(`/tenders/${item.tender_id}`);
+    if (item.tenderId) {
+      router.push(`/tenders/${item.tenderId}`);
     }
   };
 
   const getSourceBadge = (source: string) => {
     const variants: Record<string, { label: string; variant: any }> = {
-      portal: { label: "Portal", variant: "default" },
-      email: { label: "Email", variant: "secondary" },
-      api: { label: "API", variant: "outline" },
-      manual: { label: "Manual", variant: "outline" },
-      link_watcher: { label: "Link Watcher", variant: "secondary" },
+      PORTAL_SESSION: { label: "Portal", variant: "default" },
+      EMAIL: { label: "Email", variant: "secondary" },
+      API: { label: "API", variant: "outline" },
+      MANUAL: { label: "Manual", variant: "outline" },
+      LINK_WATCHER: { label: "Link Watcher", variant: "secondary" },
     };
 
     const config = variants[source] || { label: source, variant: "outline" };
@@ -188,7 +149,7 @@ export default function InboxPage() {
       amendment: "Amendment",
       deadline_change: "Deadline Change",
       message: "Message",
-      document: "New Document",
+      document_added: "New Document",
     };
 
     return <Badge variant="outline">{labels[type] || type}</Badge>;
@@ -214,10 +175,10 @@ export default function InboxPage() {
     );
   };
 
-  const unreadCount = items.filter((item) => !item.is_read).length;
-  const actionRequiredCount = items.filter((item) => item.action_required).length;
+  const unreadCount = items.filter((item) => item.status === "unread").length;
+  const actionRequiredCount = items.filter((item) => item.actionRequired).length;
   const overdueCount = items.filter(
-    (item) => item.deadline && new Date(item.deadline) < new Date()
+    (item) => item.actionDeadline && new Date(item.actionDeadline) < new Date() && item.status !== "actioned"
   ).length;
 
   return (
@@ -301,7 +262,7 @@ export default function InboxPage() {
                   <Card
                     key={item.id}
                     className={`cursor-pointer transition-all hover:shadow-md ${
-                      !item.is_read ? "border-l-4 border-l-primary bg-primary/5" : ""
+                      item.status === "unread" ? "border-l-4 border-l-primary bg-primary/5" : ""
                     }`}
                     onClick={() => handleItemClick(item)}
                   >
@@ -309,7 +270,7 @@ export default function InboxPage() {
                       <div className="flex items-start gap-4">
                         {/* Icon */}
                         <div className="mt-1">
-                          {item.is_read ? (
+                          {item.status !== "unread" ? (
                             <MailOpen className="h-5 w-5 text-muted-foreground" />
                           ) : (
                             <Mail className="h-5 w-5 text-primary" />
@@ -322,19 +283,19 @@ export default function InboxPage() {
                             <div className="flex-1">
                               <h3
                                 className={`font-medium mb-1 ${
-                                  !item.is_read ? "font-semibold" : ""
+                                  item.status === "unread" ? "font-semibold" : ""
                                 }`}
                               >
-                                {item.subject}
+                                {item.title}
                               </h3>
-                              {item.tenders && (
+                              {item.tender && (
                                 <p className="text-sm text-muted-foreground mb-2">
-                                  {item.tenders.title} - {item.tenders.authority}
+                                  {item.tender.title} - {item.tender.authority}
                                 </p>
                               )}
                             </div>
                             <div className="text-sm text-muted-foreground whitespace-nowrap">
-                              {new Date(item.created_at).toLocaleDateString()}
+                              {new Date(item.createdAt).toLocaleDateString()}
                             </div>
                           </div>
 
@@ -343,22 +304,29 @@ export default function InboxPage() {
                               {item.summary}
                             </p>
                           )}
+                          
+                          {item.actionText && item.actionRequired && (
+                            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-2 rounded-md mb-3 text-sm flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                              <span><strong>Action:</strong> {item.actionText}</span>
+                            </div>
+                          )}
 
                           {/* Badges */}
                           <div className="flex flex-wrap items-center gap-2">
                             {getSourceBadge(item.source)}
                             {getTypeBadge(item.type)}
                             {getPriorityBadge(item.priority)}
-                            {item.action_required && (
+                            {item.actionRequired && (
                               <Badge variant="default" className="gap-1">
                                 <AlertCircle className="h-3 w-3" />
                                 Action Required
                               </Badge>
                             )}
-                            {item.deadline && (
+                            {item.actionDeadline && (
                               <Badge variant="outline" className="gap-1">
                                 <Clock className="h-3 w-3" />
-                                Due: {new Date(item.deadline).toLocaleDateString()}
+                                Due: {new Date(item.actionDeadline).toLocaleDateString()}
                               </Badge>
                             )}
                           </div>
@@ -369,7 +337,7 @@ export default function InboxPage() {
                           className="flex gap-1"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {item.is_read ? (
+                          {item.status !== "unread" ? (
                             <Button
                               variant="ghost"
                               size="icon"

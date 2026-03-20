@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -15,14 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { supabase } from "@/lib/supabase";
+import { portalConnectionService, type PortalConnection, type CreateConnectionParams } from "@/services/portalConnectionService";
 import {
   Rss,
   Mail,
@@ -37,28 +31,17 @@ import {
   Settings,
 } from "lucide-react";
 
-interface PortalConnection {
-  id: string;
-  connection_type: "public_feed" | "email_alert" | "portal_login" | "link_watcher";
-  name: string;
-  status: "active" | "inactive" | "error" | "pending";
-  config: Record<string, any>;
-  last_sync: string | null;
-  last_error: string | null;
-  created_at: string;
-}
-
 export default function IntegrationsPage() {
-  const { organisation, user } = useAuth();
+  const { organisation } = useAuth();
   const [connections, setConnections] = useState<PortalConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<string>("");
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   // Form states
   const [formData, setFormData] = useState({
     name: "",
-    connectionType: "" as PortalConnection["connection_type"],
+    connectionType: "" as PortalConnection["connectionType"],
     keywords: "",
     location: "",
     email: "",
@@ -72,15 +55,11 @@ export default function IntegrationsPage() {
   }, [organisation]);
 
   const fetchConnections = async () => {
+    if (!organisation) return;
     try {
-      const { data, error } = await supabase
-        .from("portal_connections")
-        .select("*")
-        .eq("organisation_id", organisation?.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setConnections((data as PortalConnection[]) || []);
+      setLoading(true);
+      const data = await portalConnectionService.getAll(organisation.id);
+      setConnections(data);
     } catch (error) {
       console.error("Error fetching connections:", error);
     } finally {
@@ -90,34 +69,38 @@ export default function IntegrationsPage() {
 
   const handleCreateConnection = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!organisation) return;
 
     try {
       const config: Record<string, any> = {};
+      let sourceType = "";
 
-      if (formData.connectionType === "public_feed") {
+      if (formData.connectionType === "PUBLIC_API") {
         config.keywords = formData.keywords;
         config.location = formData.location;
-      } else if (formData.connectionType === "email_alert") {
+        sourceType = "find_a_tender"; // Defaulting to find a tender for now
+      } else if (formData.connectionType === "EMAIL") {
         config.email = formData.email;
-      } else if (formData.connectionType === "link_watcher") {
+        sourceType = "gmail";
+      } else if (formData.connectionType === "LINK_WATCHER") {
         config.url = formData.url;
+        sourceType = "url";
       }
 
-      const { error } = await supabase.from("portal_connections").insert({
-        organisation_id: organisation?.id,
-        connection_type: formData.connectionType,
-        name: formData.name,
-        status: "pending",
+      const params: CreateConnectionParams = {
+        organisationId: organisation.id,
+        connectionName: formData.name,
+        connectionType: formData.connectionType,
+        sourceType,
         config,
-        created_by: user?.id,
-      });
+      };
 
-      if (error) throw error;
+      await portalConnectionService.create(params);
 
       setIsDialogOpen(false);
       setFormData({
         name: "",
-        connectionType: "" as PortalConnection["connection_type"],
+        connectionType: "" as PortalConnection["connectionType"],
         keywords: "",
         location: "",
         email: "",
@@ -133,29 +116,40 @@ export default function IntegrationsPage() {
   const deleteConnection = async (id: string) => {
     if (!confirm("Delete this connection?")) return;
 
-    const { error } = await supabase
-      .from("portal_connections")
-      .delete()
-      .eq("id", id);
-
-    if (!error) {
+    try {
+      await portalConnectionService.delete(id);
       setConnections((prev) => prev.filter((conn) => conn.id !== id));
+    } catch (error) {
+      console.error("Error deleting connection:", error);
     }
   };
 
   const syncConnection = async (id: string) => {
-    alert("Sync functionality will be implemented in the backend");
+    setSyncingId(id);
+    try {
+      // Trigger the sync process via our service (simulating backend worker dispatch)
+      await portalConnectionService.triggerSync(id);
+      
+      // Re-fetch connection status shortly after
+      setTimeout(() => {
+        fetchConnections();
+        setSyncingId(null);
+      }, 2500);
+    } catch (error) {
+      console.error("Error syncing connection:", error);
+      setSyncingId(null);
+    }
   };
 
   const getConnectionIcon = (type: string) => {
     switch (type) {
-      case "public_feed":
+      case "PUBLIC_API":
         return <Rss className="h-5 w-5" />;
-      case "email_alert":
+      case "EMAIL":
         return <Mail className="h-5 w-5" />;
-      case "portal_login":
+      case "PORTAL_SESSION":
         return <Globe className="h-5 w-5" />;
-      case "link_watcher":
+      case "LINK_WATCHER":
         return <LinkIcon className="h-5 w-5" />;
       default:
         return <Settings className="h-5 w-5" />;
@@ -164,17 +158,18 @@ export default function IntegrationsPage() {
 
   const getStatusBadge = (status: string) => {
     const config: Record<string, { variant: any; icon: any; label: string }> = {
-      active: { variant: "default", icon: CheckCircle2, label: "Active" },
+      connected: { variant: "default", icon: CheckCircle2, label: "Connected" },
       inactive: { variant: "secondary", icon: XCircle, label: "Inactive" },
       error: { variant: "destructive", icon: AlertCircle, label: "Error" },
       pending: { variant: "outline", icon: RefreshCw, label: "Pending" },
+      syncing: { variant: "outline", icon: RefreshCw, label: "Syncing..." },
     };
 
     const { variant, icon: Icon, label } = config[status] || config.pending;
 
     return (
-      <Badge variant={variant} className="gap-1">
-        <Icon className="h-3 w-3" />
+      <Badge variant={variant} className={`gap-1 ${status === 'syncing' ? 'animate-pulse' : ''}`}>
+        <Icon className={`h-3 w-3 ${status === 'syncing' ? 'animate-spin' : ''}`} />
         {label}
       </Badge>
     );
@@ -182,27 +177,27 @@ export default function IntegrationsPage() {
 
   const connectionTypes = [
     {
-      value: "public_feed",
-      label: "Public Feed",
+      value: "PUBLIC_API",
+      label: "Public API Feed",
       description: "Connect to Find a Tender, Contracts Finder",
       icon: Rss,
     },
     {
-      value: "email_alert",
-      label: "Email Alerts",
-      description: "Parse tender alerts from your email",
+      value: "EMAIL",
+      label: "Email Integration (Gmail)",
+      description: "Parse tender alerts directly from your inbox",
       icon: Mail,
     },
     {
-      value: "portal_login",
+      value: "PORTAL_SESSION",
       label: "Portal Login",
       description: "Securely connect to procurement portals",
       icon: Globe,
     },
     {
-      value: "link_watcher",
+      value: "LINK_WATCHER",
       label: "Link Watcher",
-      description: "Monitor tender URLs for changes",
+      description: "Monitor tender URLs for updates and changes",
       icon: LinkIcon,
     },
   ];
@@ -249,7 +244,7 @@ export default function IntegrationsPage() {
                         onClick={() =>
                           setFormData({
                             ...formData,
-                            connectionType: type.value as PortalConnection["connection_type"],
+                            connectionType: type.value as PortalConnection["connectionType"],
                           })
                         }
                       >
@@ -279,10 +274,10 @@ export default function IntegrationsPage() {
                     />
                   </div>
 
-                  {formData.connectionType === "public_feed" && (
+                  {formData.connectionType === "PUBLIC_API" && (
                     <>
                       <div className="space-y-2">
-                        <Label htmlFor="keywords">Keywords</Label>
+                        <Label htmlFor="keywords">Keywords (Comma separated)</Label>
                         <Input
                           id="keywords"
                           placeholder="e.g., adult social care, domiciliary care"
@@ -296,7 +291,7 @@ export default function IntegrationsPage() {
                         <Label htmlFor="location">Location</Label>
                         <Input
                           id="location"
-                          placeholder="e.g., Manchester, North West"
+                          placeholder="e.g., London, North West"
                           value={formData.location}
                           onChange={(e) =>
                             setFormData({ ...formData, location: e.target.value })
@@ -306,36 +301,74 @@ export default function IntegrationsPage() {
                     </>
                   )}
 
-                  {formData.connectionType === "email_alert" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="alerts@yourcompany.com"
-                        value={formData.email}
-                        onChange={(e) =>
-                          setFormData({ ...formData, email: e.target.value })
-                        }
-                      />
-                      <p className="text-sm text-muted-foreground">
-                        Forward tender alerts to this email. We'll parse them automatically.
-                      </p>
+                  {formData.connectionType === "EMAIL" && (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border p-4 bg-muted/30">
+                        <h4 className="font-medium mb-2 flex items-center gap-2">
+                          <Mail className="h-4 w-4" /> Gmail Integration
+                        </h4>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Securely connect your Gmail account to let TenderFlow AI automatically parse incoming tender alerts.
+                        </p>
+                        <Button type="button" variant="outline" className="w-full bg-white">
+                          <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                            <path
+                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                              fill="#4285F4"
+                            />
+                            <path
+                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                              fill="#34A853"
+                            />
+                            <path
+                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                              fill="#FBBC05"
+                            />
+                            <path
+                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                              fill="#EA4335"
+                            />
+                          </svg>
+                          Sign in with Google
+                        </Button>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Separator className="flex-1" />
+                        <span className="text-xs text-muted-foreground uppercase">OR USE FORWARDING</span>
+                        <Separator className="flex-1" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Alert Email Address</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="alerts@yourcompany.com"
+                          value={formData.email}
+                          onChange={(e) =>
+                            setFormData({ ...formData, email: e.target.value })
+                          }
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Forward tender alerts to this address and we'll parse them.
+                        </p>
+                      </div>
                     </div>
                   )}
 
-                  {formData.connectionType === "portal_login" && (
+                  {formData.connectionType === "PORTAL_SESSION" && (
                     <div className="rounded-lg bg-muted p-4">
                       <p className="text-sm text-muted-foreground">
                         Portal login connections require additional setup. Our team will
-                        contact you to configure this securely.
+                        contact you to configure this securely without storing plaintext credentials.
                       </p>
                     </div>
                   )}
 
-                  {formData.connectionType === "link_watcher" && (
+                  {formData.connectionType === "LINK_WATCHER" && (
                     <div className="space-y-2">
-                      <Label htmlFor="url">Tender URL</Label>
+                      <Label htmlFor="url">Tender URL to Monitor</Label>
                       <Input
                         id="url"
                         type="url"
@@ -346,7 +379,7 @@ export default function IntegrationsPage() {
                         }
                       />
                       <p className="text-sm text-muted-foreground">
-                        We'll monitor this URL for updates and notify you of changes.
+                        We'll periodically check this URL and notify you of any changes, new documents, or deadline extensions.
                       </p>
                     </div>
                   )}
@@ -358,7 +391,7 @@ export default function IntegrationsPage() {
                       onClick={() => {
                         setFormData({
                           name: "",
-                          connectionType: "" as PortalConnection["connection_type"],
+                          connectionType: "" as PortalConnection["connectionType"],
                           keywords: "",
                           location: "",
                           email: "",
@@ -400,11 +433,11 @@ export default function IntegrationsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {connections.map((connection) => (
-              <Card key={connection.id}>
+              <Card key={connection.id} className={connection.status === 'error' ? 'border-destructive/50' : ''}>
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      {getConnectionIcon(connection.connection_type)}
+                      {getConnectionIcon(connection.connectionType)}
                     </div>
                     <div className="flex gap-1">
                       <Button
@@ -412,14 +445,15 @@ export default function IntegrationsPage() {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => syncConnection(connection.id)}
+                        disabled={syncingId === connection.id}
                         title="Sync now"
                       >
-                        <RefreshCw className="h-4 w-4" />
+                        <RefreshCw className={`h-4 w-4 ${syncingId === connection.id ? 'animate-spin' : ''}`} />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => deleteConnection(connection.id)}
                         title="Delete"
                       >
@@ -427,9 +461,10 @@ export default function IntegrationsPage() {
                       </Button>
                     </div>
                   </div>
-                  <CardTitle className="text-lg">{connection.name}</CardTitle>
+                  <CardTitle className="text-lg">{connection.connectionName}</CardTitle>
                   <CardDescription>
-                    {connection.connection_type.replace("_", " ").toUpperCase()}
+                    {connection.connectionType.replace("_", " ")}
+                    {connection.sourceType && ` • ${connection.sourceType.replace(/_/g, ' ')}`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -439,29 +474,37 @@ export default function IntegrationsPage() {
                       {getStatusBadge(connection.status)}
                     </div>
 
-                    {connection.last_sync && (
+                    {connection.lastSyncAt && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Last Sync</span>
                         <span className="text-sm">
-                          {new Date(connection.last_sync).toLocaleDateString()}
+                          {new Date(connection.lastSyncAt).toLocaleString()}
                         </span>
                       </div>
                     )}
 
-                    {connection.last_error && (
-                      <div className="rounded-lg bg-destructive/10 p-3">
-                        <p className="text-xs text-destructive">
-                          {connection.last_error}
-                        </p>
+                    {connection.errorMessage && (
+                      <div className="rounded-lg bg-destructive/10 p-3 mt-2 border border-destructive/20">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                          <p className="text-xs text-destructive">
+                            {connection.errorMessage}
+                          </p>
+                        </div>
+                        {connection.errorCount > 0 && (
+                          <p className="text-xs text-destructive/70 mt-1 ml-6">
+                            Failed {connection.errorCount} time(s)
+                          </p>
+                        )}
                       </div>
                     )}
 
                     {connection.config && Object.keys(connection.config).length > 0 && (
-                      <div className="pt-2 border-t">
+                      <div className="pt-3 border-t mt-3">
                         <p className="text-xs text-muted-foreground mb-2">Configuration:</p>
                         <div className="flex flex-wrap gap-1">
                           {Object.entries(connection.config).map(([key, value]) => (
-                            <Badge key={key} variant="outline" className="text-xs">
+                            <Badge key={key} variant="secondary" className="text-[10px] font-normal">
                               {key}: {String(value)}
                             </Badge>
                           ))}

@@ -108,21 +108,40 @@ export const portalConnectionService = {
     status: PortalConnection["status"],
     errorMessage?: string
   ): Promise<void> {
-    const updates: Record<string, any> = { status };
-    if (errorMessage) updates.error_message = errorMessage;
     if (status === "error") {
-      updates.error_count = supabase.rpc("increment", { x: 1 });
-    } else if (status === "connected") {
-      updates.error_count = 0;
-      updates.error_message = null;
+      const { data } = await supabase
+        .from("portal_connections")
+        .select("error_count")
+        .eq("id", id)
+        .single();
+      
+      const currentCount = data?.error_count || 0;
+      
+      const { error } = await supabase
+        .from("portal_connections")
+        .update({
+          status,
+          error_message: errorMessage,
+          error_count: currentCount + 1,
+        })
+        .eq("id", id);
+
+      if (error) throw error;
+    } else {
+      const updates: Record<string, any> = { status };
+      if (errorMessage) updates.error_message = errorMessage;
+      if (status === "connected") {
+        updates.error_count = 0;
+        updates.error_message = null;
+      }
+
+      const { error } = await supabase
+        .from("portal_connections")
+        .update(updates)
+        .eq("id", id);
+
+      if (error) throw error;
     }
-
-    const { error } = await supabase
-      .from("portal_connections")
-      .update(updates)
-      .eq("id", id);
-
-    if (error) throw error;
   },
 
   async updateLastSync(id: string): Promise<void> {
