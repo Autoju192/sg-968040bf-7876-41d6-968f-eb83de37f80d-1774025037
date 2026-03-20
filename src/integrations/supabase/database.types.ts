@@ -741,6 +741,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_or_get_organisation: {
+        Args: { p_org_name: string }
+        Returns: {
+          org_created_at: string
+          org_id: string
+          org_name: string
+        }[]
+      }
       create_organisation: {
         Args: { org_name: string }
         Returns: {

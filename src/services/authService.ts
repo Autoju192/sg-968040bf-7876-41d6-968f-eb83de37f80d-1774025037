@@ -35,8 +35,8 @@ export const authService = {
       console.log("🏢 Step 1: Creating/fetching organisation via RPC...");
       
       const { data: orgData, error: orgError } = await supabase.rpc(
-        'create_or_get_organisation',
-        { org_name: organisationName }
+        'create_or_get_organisation' as any,
+        { p_org_name: organisationName }
       );
 
       if (orgError) {
@@ -49,7 +49,7 @@ export const authService = {
         };
       }
 
-      if (!orgData || orgData.length === 0) {
+      if (!orgData || (orgData as any[]).length === 0) {
         console.error("❌ No organization data returned from RPC");
         return {
           error: {
@@ -58,7 +58,7 @@ export const authService = {
         };
       }
 
-      const organisationId = orgData[0].org_id;
+      const organisationId = (orgData as any[])[0].org_id;
       console.log("✅ Organization ready:", organisationId);
 
       // ============================================================
@@ -121,7 +121,7 @@ export const authService = {
       console.log("📝 Step 3: Creating user profile via RPC...");
       
       // Use direct INSERT via RPC to bypass schema cache
-      const { error: profileError } = await supabase.rpc('create_user_profile', {
+      const { error: profileError } = await supabase.rpc('create_user_profile' as any, {
         p_user_id: authData.user.id,
         p_email: email,
         p_full_name: fullName,
