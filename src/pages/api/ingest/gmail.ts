@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase";
+import { decrypt, needsTokenRefresh, refreshGmailTokens, encrypt } from "@/lib/encryption";
 
 /**
  * Gmail Integration API
@@ -25,13 +26,42 @@ export default async function handler(
   }
 
   try {
-    const { connectionId, organisationId, accessToken } = req.body;
+    const { connectionId, organisationId } = req.body;
 
-    if (!connectionId || !organisationId || !accessToken) {
+    if (!connectionId || !organisationId) {
       return res.status(400).json({ error: "Missing required parameters" });
     }
 
     console.log("📧 Fetching emails from Gmail...");
+
+    // Get connection details
+    const { data: connection } = await supabase
+      .from("portal_connections")
+      .select("*")
+      .eq("id", connectionId)
+      .single();
+
+    if (!connection || !connection.credentials) {
+      throw new Error("Gmail connection not found or not authenticated");
+    }
+
+    // Decrypt tokens
+    let tokens = decrypt(connection.credentials);
+
+    // Refresh tokens if needed
+    if (needsTokenRefresh(tokens)) {
+      console.log("🔄 Refreshing Gmail tokens...");
+      tokens = await refreshGmailTokens(tokens.refresh_token);
+      
+      // Store refreshed tokens
+      await supabase
+        .from("portal_connections")
+        .update({
+          credentials: encrypt(tokens),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", connectionId);
+    }
 
     // Update connection status
     await supabase
@@ -40,7 +70,7 @@ export default async function handler(
       .eq("id", connectionId);
 
     // Fetch emails from Gmail API
-    const emails = await fetchGmailMessages(accessToken);
+    const emails = await fetchGmailMessages(tokens.access_token);
 
     console.log(`✅ Fetched ${emails.length} emails`);
 
