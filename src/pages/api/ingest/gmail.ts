@@ -57,7 +57,7 @@ export default async function handler(
       await supabase
         .from("portal_connections")
         .update({
-          credentials: encrypt(tokens),
+          credentials: encrypt(tokens) as any,
           updated_at: new Date().toISOString(),
         })
         .eq("id", connectionId);

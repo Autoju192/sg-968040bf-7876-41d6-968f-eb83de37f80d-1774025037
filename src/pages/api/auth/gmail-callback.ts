@@ -26,6 +26,8 @@ export default async function handler(
       return res.redirect("/integrations?error=missing_parameters");
     }
 
+    const organisationIdStr = Array.isArray(organisationId) ? organisationId[0] : organisationId;
+
     // Exchange code for tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -70,7 +72,7 @@ export default async function handler(
     const { data: existingConnection } = await supabase
       .from("portal_connections")
       .select("id")
-      .eq("organisation_id", organisationId)
+      .eq("organisation_id", organisationIdStr)
       .eq("source_type", "gmail")
       .single();
 
@@ -82,7 +84,7 @@ export default async function handler(
           config: {
             email: userInfo.email,
           },
-          credentials: encryptedTokens,
+          credentials: encryptedTokens as any,
           status: "connected",
           error_message: null,
           error_count: 0,
@@ -92,18 +94,18 @@ export default async function handler(
     } else {
       // Create new connection
       await supabase.from("portal_connections").insert({
-        organisation_id: organisationId as string,
+        organisation_id: organisationIdStr,
         connection_name: `Gmail - ${userInfo.email}`,
         connection_type: "EMAIL",
         source_type: "gmail",
         config: {
           email: userInfo.email,
         },
-        credentials: encryptedTokens,
+        credentials: encryptedTokens as any,
         status: "connected",
         sync_frequency: 2, // Every 2 hours
         next_sync_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      });
+      } as any);
     }
 
     // Redirect back to integrations page

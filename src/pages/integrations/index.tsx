@@ -32,6 +32,7 @@ import {
   History,
   Clock,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function IntegrationsPage() {
   const { organisation } = useAuth();

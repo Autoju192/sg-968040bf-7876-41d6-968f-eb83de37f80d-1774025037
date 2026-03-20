@@ -82,13 +82,13 @@ export default async function handler(
 
         // Update next sync time
         const nextSync = new Date();
-        nextSync.setHours(nextSync.getHours() + (connection.sync_frequency || 6));
+        nextSync.setHours(nextSync.getHours() + (Number(connection.sync_frequency) || 6));
 
         await supabase
           .from("portal_connections")
           .update({
             next_sync_at: nextSync.toISOString(),
-          })
+          } as any)
           .eq("id", connection.id);
 
         console.log(`✅ Synced: ${connection.connection_name}`);
