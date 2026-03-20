@@ -135,12 +135,18 @@ export default function DocumentEditorPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
+      if (!user) throw new Error("User not authenticated");
+
+      const tenderIdString = typeof tender === "string" ? tender : Array.isArray(tender) ? tender[0] : "";
+
+      if (!tenderIdString) throw new Error("Tender ID is required");
+
       const documentData = {
         title,
         content: JSON.stringify(sections),
-        tender_id: tender || null,
-        user_id: user?.id,
-        document_type: generationType,
+        tender_id: tenderIdString,
+        created_by: user.id,
+        type: generationType,
       };
 
       const { error } = await supabase.from("documents").insert(documentData);
