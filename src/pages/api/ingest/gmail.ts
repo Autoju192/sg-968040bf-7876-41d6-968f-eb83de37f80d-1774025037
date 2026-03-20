@@ -46,7 +46,7 @@ export default async function handler(
     }
 
     // Decrypt tokens
-    let tokens = decrypt(connection.credentials);
+    let tokens = decrypt(connection.credentials as string);
 
     // Refresh tokens if needed
     if (needsTokenRefresh(tokens)) {
