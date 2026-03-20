@@ -747,6 +747,16 @@ export type Database = {
           id: string
         }[]
       }
+      create_user_profile: {
+        Args: {
+          p_email: string
+          p_full_name: string
+          p_organisation_id: string
+          p_role: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

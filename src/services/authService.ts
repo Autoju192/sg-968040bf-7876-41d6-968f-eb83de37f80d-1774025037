@@ -17,10 +17,7 @@ export interface User {
 
 export const authService = {
   /**
-   * Sign up a new user - AUTHENTICATION-FIRST APPROACH
-   * 
-   * This method creates the auth user FIRST, then creates the organization
-   * while authenticated, which satisfies the RLS policy requirement.
+   * Sign up a new user - Uses RPC to bypass PostgREST schema cache
    */
   async signUp(
     email: string,
@@ -30,12 +27,44 @@ export const authService = {
     role: "admin" | "bid_manager" | "contributor" = "bid_manager"
   ) {
     try {
-      console.log("🚀 Starting authentication-first signup...", { email, organisationName, role });
+      console.log("🚀 Starting RPC-based signup...", { email, organisationName, role });
 
       // ============================================================
-      // STEP 1: CREATE AUTH USER FIRST (No org needed yet)
+      // STEP 1: CREATE ORGANIZATION VIA RPC (Bypasses schema cache!)
       // ============================================================
-      console.log("👤 Step 1: Creating Supabase Auth user...");
+      console.log("🏢 Step 1: Creating/fetching organisation via RPC...");
+      
+      const { data: orgData, error: orgError } = await supabase.rpc(
+        'create_or_get_organisation',
+        { org_name: organisationName }
+      );
+
+      if (orgError) {
+        console.error("❌ RPC organization creation failed:", orgError);
+        return {
+          error: {
+            message: "Failed to create organization. Please contact support.",
+            details: orgError.message
+          }
+        };
+      }
+
+      if (!orgData || orgData.length === 0) {
+        console.error("❌ No organization data returned from RPC");
+        return {
+          error: {
+            message: "Failed to create organization. Please try again."
+          }
+        };
+      }
+
+      const organisationId = orgData[0].org_id;
+      console.log("✅ Organization ready:", organisationId);
+
+      // ============================================================
+      // STEP 2: CREATE AUTH USER
+      // ============================================================
+      console.log("👤 Step 2: Creating Supabase Auth user...");
       
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -43,7 +72,8 @@ export const authService = {
         options: {
           data: {
             full_name: fullName,
-            // Don't include org_id yet - we'll add it later
+            organisation_id: organisationId,
+            role: role,
           },
         },
       });
@@ -51,7 +81,6 @@ export const authService = {
       if (authError) {
         console.error("❌ Auth signup failed:", authError);
         
-        // Provide user-friendly error messages
         if (authError.message?.includes("already registered") || authError.message?.includes("already been registered")) {
           return {
             error: {
@@ -87,139 +116,43 @@ export const authService = {
       console.log("✅ Auth user created successfully:", authData.user.id);
 
       // ============================================================
-      // STEP 2: NOW USER IS AUTHENTICATED - Check for existing org
+      // STEP 3: CREATE USER PROFILE VIA RPC (Also bypasses cache!)
       // ============================================================
-      console.log("🔍 Step 2: Checking for existing organisation (now authenticated)...");
+      console.log("📝 Step 3: Creating user profile via RPC...");
       
-      const { data: existingOrgs, error: checkError } = await supabase
-        .from("organisations")
-        .select("id, name")
-        .ilike("name", organisationName);
-
-      if (checkError) {
-        console.warn("⚠️ Error checking existing organisation:", checkError);
-        // Don't fail - continue with creation
-      }
-
-      let organisationId = existingOrgs?.[0]?.id;
-
-      // ============================================================
-      // STEP 3: CREATE ORGANIZATION (User is authenticated now!)
-      // ============================================================
-      if (!organisationId) {
-        console.log("🏢 Step 3: Creating organisation (user is authenticated)...");
-        
-        const { data: newOrg, error: orgError } = await supabase
-          .from("organisations")
-          .insert({ name: organisationName })
-          .select("id, name, created_at")
-          .single();
-
-        if (orgError) {
-          console.error("❌ Organization creation failed:", orgError);
-          
-          // Handle duplicate key error (race condition)
-          if (orgError.code === "23505") {
-            console.log("🔄 Duplicate org detected, fetching existing...");
-            const { data: fetchedOrg } = await supabase
-              .from("organisations")
-              .select("id")
-              .ilike("name", organisationName)
-              .single();
-            
-            if (fetchedOrg) {
-              organisationId = fetchedOrg.id;
-              console.log("✅ Using existing organization:", organisationId);
-            }
-          }
-
-          // If we still don't have an org ID, something is seriously wrong
-          if (!organisationId) {
-            // Clean up: delete the auth user we just created
-            console.log("🧹 Cleaning up: deleting auth user...");
-            await supabase.auth.admin.deleteUser(authData.user.id);
-            
-            return {
-              error: {
-                message: "Failed to create organization. Please contact support.",
-                details: orgError.message
-              }
-            };
-          }
-        } else {
-          organisationId = newOrg.id;
-          console.log("✅ Organization created successfully:", organisationId);
-        }
-      } else {
-        console.log("✅ Using existing organization:", organisationId);
-      }
-
-      // ============================================================
-      // STEP 4: CREATE USER PROFILE (Link user to organization)
-      // ============================================================
-      console.log("📝 Step 4: Creating user profile...");
-      
-      const { error: profileError } = await supabase
-        .from("users")
-        .insert({
-          id: authData.user.id,
-          email: email,
-          full_name: fullName,
-          organisation_id: organisationId,
-          role: role,
-        });
+      // Use direct INSERT via RPC to bypass schema cache
+      const { error: profileError } = await supabase.rpc('create_user_profile', {
+        p_user_id: authData.user.id,
+        p_email: email,
+        p_full_name: fullName,
+        p_organisation_id: organisationId,
+        p_role: role
+      });
 
       if (profileError) {
         console.error("❌ User profile creation failed:", profileError);
         
-        // Check if profile already exists (from database trigger)
-        if (profileError.code === "23505") {
-          console.log("✅ User profile already exists (created by trigger)");
-          
-          // Update the existing profile with correct org_id
-          const { error: updateError } = await supabase
-            .from("users")
-            .update({
-              full_name: fullName,
-              organisation_id: organisationId,
-              role: role,
-            })
-            .eq("id", authData.user.id);
-          
-          if (updateError) {
-            console.error("⚠️ Failed to update existing profile:", updateError);
-          } else {
-            console.log("✅ Updated existing profile with organization");
-          }
+        // If profile creation fails, try direct INSERT as fallback
+        console.log("🔄 Attempting fallback: direct INSERT...");
+        
+        const { error: insertError } = await supabase
+          .from("users")
+          .insert({
+            id: authData.user.id,
+            email: email,
+            full_name: fullName,
+            organisation_id: organisationId,
+            role: role,
+          });
+
+        if (insertError && insertError.code !== "23505") {
+          console.error("❌ Fallback INSERT also failed:", insertError);
+          console.warn("⚠️ Continuing anyway - profile may be created by trigger");
         } else {
-          // Profile creation failed for another reason
-          console.error("❌ Unexpected profile error:", profileError);
-          
-          // Don't fail signup - the trigger should handle it
-          console.warn("⚠️ Continuing anyway - trigger should create profile");
+          console.log("✅ User profile created via fallback INSERT");
         }
       } else {
-        console.log("✅ User profile created successfully");
-      }
-
-      // ============================================================
-      // STEP 5: UPDATE AUTH USER METADATA (Add org_id)
-      // ============================================================
-      console.log("🔄 Step 5: Updating auth user metadata...");
-      
-      const { error: metadataError } = await supabase.auth.updateUser({
-        data: {
-          full_name: fullName,
-          organisation_id: organisationId,
-          role: role,
-        },
-      });
-
-      if (metadataError) {
-        console.warn("⚠️ Failed to update user metadata:", metadataError);
-        // Don't fail signup - metadata is non-critical
-      } else {
-        console.log("✅ User metadata updated");
+        console.log("✅ User profile created successfully via RPC");
       }
 
       console.log("🎉 Signup completed successfully!");
