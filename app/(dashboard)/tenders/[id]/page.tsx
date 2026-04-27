@@ -30,7 +30,7 @@ export default async function TenderPage({ params }: Props) {
       .from('tenders')
       .select('*')
       .eq('id', id)
-      .eq('organisation_id', profile?.organisation_id)
+      .eq('organisation_id', profile?.organisation_id ?? '')
       .single(),
     supabase
       .from('tender_questions')

@@ -18,31 +18,16 @@ export default async function TendersPage() {
 
   const { data: tenders } = await supabase
     .from('tenders')
-    .select(`
-      *,
-      tender_questions(count),
-      tender_questions!inner(
-        tender_responses(quality_score)
-      )
-    `)
-    .eq('organisation_id', profile?.organisation_id)
-    .order('created_at', { ascending: false })
-
-  // Simpler query without the complex join for question counts
-  const { data: simpleTenders } = await supabase
-    .from('tenders')
     .select('*')
-    .eq('organisation_id', profile?.organisation_id)
+    .eq('organisation_id', profile?.organisation_id ?? '')
     .order('created_at', { ascending: false })
-
-  const STATUS_FILTER = ['all', 'active', 'submitted', 'won', 'lost']
 
   return (
     <div className="px-8 py-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">My Tenders</h1>
-          <p className="text-sm text-muted-foreground mt-1">{simpleTenders?.length ?? 0} tenders total</p>
+          <p className="text-sm text-muted-foreground mt-1">{tenders?.length ?? 0} tenders total</p>
         </div>
         <Link
           href="/tenders/new"
@@ -53,7 +38,7 @@ export default async function TendersPage() {
         </Link>
       </div>
 
-      {!simpleTenders?.length ? (
+      {!tenders?.length ? (
         <div className="bg-white border border-border rounded-lg flex flex-col items-center justify-center py-20 text-center">
           <FileText className="h-10 w-10 text-muted-foreground mb-4" />
           <p className="text-base font-medium text-foreground">No tenders yet</p>
@@ -70,7 +55,7 @@ export default async function TendersPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {simpleTenders.map(tender => {
+          {tenders.map(tender => {
             const past = isDeadlinePast(tender.deadline)
             const statusColors: Record<string, string> = {
               active: 'text-blue-700 bg-blue-50 border-blue-200',

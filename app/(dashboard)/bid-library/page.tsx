@@ -17,7 +17,7 @@ export default async function BidLibraryPage() {
   const { data: items } = await supabase
     .from('bid_library_items')
     .select('*')
-    .eq('organisation_id', profile?.organisation_id)
+    .eq('organisation_id', profile?.organisation_id ?? '')
     .order('created_at', { ascending: false })
 
   return (

@@ -25,10 +25,12 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||
-                      request.nextUrl.pathname.startsWith('/signup')
+  const pathname = request.nextUrl.pathname
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup')
+  const isApiRoute = pathname.startsWith('/api/')
 
-  if (!user && !isAuthRoute) {
+  // API routes handle their own auth and return 401 — don't redirect them
+  if (!user && !isAuthRoute && !isApiRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

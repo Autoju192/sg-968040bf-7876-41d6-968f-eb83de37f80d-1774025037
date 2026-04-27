@@ -17,7 +17,7 @@ export default async function EvidencePage() {
   const { data: items } = await supabase
     .from('evidence_items')
     .select('*')
-    .eq('organisation_id', profile?.organisation_id)
+    .eq('organisation_id', profile?.organisation_id ?? '')
     .order('created_at', { ascending: false })
 
   return (

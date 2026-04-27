@@ -17,7 +17,7 @@ export default async function PreviousBidsPage() {
   const { data: bids } = await supabase
     .from('previous_bids')
     .select('*, previous_bid_sections(count)')
-    .eq('organisation_id', profile?.organisation_id)
+    .eq('organisation_id', profile?.organisation_id ?? '')
     .order('submission_date', { ascending: false, nullsFirst: false })
 
   return (

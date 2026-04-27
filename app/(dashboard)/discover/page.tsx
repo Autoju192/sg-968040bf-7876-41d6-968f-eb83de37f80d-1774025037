@@ -17,7 +17,7 @@ export default async function DiscoverPage() {
   const { data: saved } = await supabase
     .from('discovered_tenders')
     .select('*')
-    .eq('organisation_id', profile?.organisation_id)
+    .eq('organisation_id', profile?.organisation_id ?? '')
     .neq('status', 'ignored')
     .order('deadline', { ascending: true, nullsFirst: false })
     .limit(50)
